@@ -40,6 +40,7 @@ def initial_run():
 if __name__ == '__main__':
     load_dotenv()
     db.init_db()
+    db.load_channels()
     
     initial_run()
     
