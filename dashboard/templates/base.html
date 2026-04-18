@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YT PoliSignal</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- We need a crisp serif like Playfair Display and a standard Arial/Inter for sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        econred: '#e3120b',
+                        econblue: '#003057',
+                        econgray: '#e4e4e4',
+                        econdark: '#111111',
+                        econtext: '#333333'
+                    },
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'Georgia', 'serif'],
+                        sans: ['"Inter"', 'Helvetica', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    {% block head_scripts %}{% endblock %}
+</head>
+<body class="bg-white text-econtext font-sans antialiased min-h-screen" {% block body_attrs %}{% endblock %}>
+
+    <!-- Top Header mimicking the screenshot -->
+    <header class="bg-white w-full">
+        <div class="max-w-[1280px] mx-auto px-4 md:px-6 flex justify-between items-center py-4">
+            <!-- The classic Red Block Logo -->
+            <div class="bg-econred text-white w-48 py-4 px-4 flex flex-col justify-center">
+                <span class="font-serif text-[24px] leading-none mb-0.5" style="letter-spacing: 0.5px;">YT</span>
+                <span class="font-serif text-[30px] leading-none font-bold" style="letter-spacing: -1px;">PoliSignal</span>
+            </div>
+            
+            <!-- Top Right Nav Items (Static representations) -->
+            <div class="hidden md:flex items-center gap-5 text-sm font-bold text-black font-sans">
+                {% block header_right %}
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-econred"></span>
+                    <span>System Active</span>
+                </div>
+                {% endblock %}
+            </div>
+        </div>
+    </header>
+
+    <!-- The Subnav (Weekly edition... World in brief... style) -->
+    <nav class="border-y border-gray-300 w-full mb-8">
+        <div class="max-w-[1280px] mx-auto px-4 md:px-6 py-2.5 flex items-center gap-6 overflow-x-auto whitespace-nowrap text-[13px] font-bold text-black font-sans">
+            <a href="/" class="hover:underline transition">Dashboard</a>
+            <a href="/channels" class="hover:underline transition">Channels</a>
+            <a href="/methodology" class="hover:underline transition">Methodology</a>
+        </div>
+    </nav>
+
+    <!-- Main Content Body -->
+    <div class="max-w-[1280px] mx-auto px-4 md:px-6">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Minimum Viable Footer -->
+    <footer class="max-w-[1280px] mx-auto px-4 md:px-6 py-12 mt-16 border-t border-gray-300 text-xs text-gray-500 font-sans flex justify-between">
+        <span>© 2026 YT PoliSignal</span>
+        <span>Independent Broadcasting Telemetry</span>
+    </footer>
+
+    {% block bottom_scripts %}{% endblock %}
+</body>
+</html>

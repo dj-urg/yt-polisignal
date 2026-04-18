@@ -1,0 +1,21 @@
+
+
+services:
+  poller:
+    build: ./poller
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./channels.csv:/app/channels.csv:ro
+    restart: unless-stopped
+    
+  dashboard:
+    build: ./dashboard
+    env_file: .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data:ro
+    restart: unless-stopped
+    depends_on:
+      - poller

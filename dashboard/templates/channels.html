@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block body_attrs %}x-data="channelsData()" x-init="init()"{% endblock %}
+
+{% block content %}
+<main class="max-w-7xl mx-auto px-4 py-8 space-y-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b-[2px] border-black pb-4">
+        <div>
+            <h1 class="text-3xl font-serif font-black text-black tracking-tight" style="letter-spacing: -0.02em;">Channel Index</h1>
+            <p class="text-sm font-sans text-gray-600 mt-1 uppercase tracking-widest font-semibold">Active Monitoring Directory</p>
+        </div>
+        
+        <!-- Search Bar -->
+        <div class="relative w-full md:w-64 border border-gray-400 bg-white shadow-sm focus-within:border-black transition">
+            <input type="text" x-model="searchQuery" placeholder="Search parameters..." 
+                   class="w-full bg-transparent pl-9 pr-4 py-2 text-sm text-black font-semibold font-sans focus:outline-none placeholder-gray-400">
+            <span class="absolute left-3 top-2 text-gray-400 text-sm">🔍</span>
+        </div>
+    </div>
+
+    <div class="bg-white border border-gray-300 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-100 border-b-[2px] border-black text-black text-xs font-bold uppercase tracking-widest">
+                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('channel_name')">
+                            Entity / Channel <span class="text-econred ml-1" x-show="sortCol === 'channel_name'" x-text="sortAsc ? '▲' : '▼'"></span>
+                        </th>
+                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('tier')">
+                            Class <span class="text-econred ml-1" x-show="sortCol === 'tier'" x-text="sortAsc ? '▲' : '▼'"></span>
+                        </th>
+                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('category')">
+                            Category <span class="text-econred ml-1" x-show="sortCol === 'category'" x-text="sortAsc ? '▲' : '▼'"></span>
+                        </th>
+                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('subscriber_count')">
+                            Footprint (Subs) <span class="text-econred ml-1" x-show="sortCol === 'subscriber_count'" x-text="sortAsc ? '▲' : '▼'"></span>
+                        </th>
+                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('last_updated')">
+                            Latest Telemetry <span class="text-econred ml-1" x-show="sortCol === 'last_updated'" x-text="sortAsc ? '▲' : '▼'"></span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-300">
+                    <template x-for="ch in filteredChannels" :key="ch.channel_id">
+                        <tr class="hover:bg-gray-50 transition duration-150">
+                            <td class="px-5 py-4 font-bold text-black border-l-4 border-transparent hover:border-econred transition" x-text="ch.channel_name"></td>
+                            <td class="px-5 py-4">
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-black border border-gray-400 px-2 py-0.5"
+                                      :class="{
+                                          'bg-black text-white border-black': ch.tier === 1,
+                                          'bg-gray-200': ch.tier === 2,
+                                          'bg-white text-econred border-econred': ch.tier === 3
+                                      }">
+                                    Tier <span x-text="ch.tier"></span>
+                                </span>
+                            </td>
+                            <td class="px-5 py-4 text-sm text-gray-700 capitalize font-medium" x-text="ch.category"></td>
+                            <td class="px-5 py-4 text-sm font-bold font-mono text-econdark" x-text="formatNumber(ch.subscriber_count)"></td>
+                            <td class="px-5 py-4 text-xs font-mono text-gray-500" x-text="formatDate(ch.last_updated)"></td>
+                        </tr>
+                    </template>
+                    <tr x-show="filteredChannels.length === 0">
+                        <td colspan="5" class="py-12 text-center text-gray-500 font-serif italic">No entities match the given parameters.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block bottom_scripts %}
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('channelsData', () => ({
+        channels: [],
+        searchQuery: '',
+        sortCol: 'channel_name',
+        sortAsc: true,
+        
+        async init() {
+            try {
+                const res = await fetch('/api/channels_list');
+                this.channels = await res.json();
+            } catch (e) {
+                console.error("Failed to load channel data", e);
+            }
+        },
+        
+        get filteredChannels() {
+            let res = this.channels;
+            if (this.searchQuery) {
+                const q = this.searchQuery.toLowerCase();
+                res = res.filter(c => c.channel_name.toLowerCase().includes(q) || c.category.toLowerCase().includes(q));
+            }
+            res.sort((a, b) => {
+                let valA = a[this.sortCol];
+                let valB = b[this.sortCol];
+                if(valA === null) valA = '';
+                if(valB === null) valB = '';
+                
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
+                
+                if (valA < valB) return this.sortAsc ? -1 : 1;
+                if (valA > valB) return this.sortAsc ? 1 : -1;
+                return 0;
+            });
+            return res;
+        },
+        
+        sortBy(col) {
+            if(this.sortCol === col) {
+                this.sortAsc = !this.sortAsc;
+            } else {
+                this.sortCol = col;
+                this.sortAsc = true;
+            }
+        },
+
+        formatNumber(num) {
+            if(!num) return "Unknown";
+            num = Math.round(num);
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        },
+        
+        formatDate(dateStr) {
+            if(!dateStr) return "Never";
+            const d = new Date(dateStr + "Z");
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+    }));
+});
+</script>
+{% endblock %}

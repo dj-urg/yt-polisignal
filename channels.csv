@@ -1,0 +1,61 @@
+channel_id,channel_name,tier,category,notes,affiliation_type,affiliation_org
+UCXIJgqnII2ZOINSWNOGFThA,Fox News,1,network,Flagship conservative network,affiliated,Fox News Media
+UCaeO5vkdj5xOQHp4UmIN6dw,Daily Wire,1,network,Major conservative media company,affiliated,The Daily Wire
+UCx6h-dWzJ5NpAlja1YsApdg,Newsmax,1,network,Conservative news network,affiliated,Newsmax Media
+UCNbIDJNNgaRrXOD7VllIMRQ,One America News Network,1,network,Conservative news network,affiliated,Herring Networks
+UCKgJEs_v0JB-6jWb8lIy9Xw,BlazeTV,1,network,Glenn Beck's network,affiliated,Blaze Media
+UCQVhgOxzt5W1fZhOd0l2E6g,The First TV,1,network,Conservative commentary network,affiliated,The First TV
+UCCXoCcu9Rp7NPbTzIvogpZg,Fox Business,1,network,Conservative business news,affiliated,Fox News Media
+UCHqC-yWZ1kri4YzwRSt6RGQ,Right Side Broadcasting Network,1,network,Trump rallies and news,affiliated,Right Side Broadcasting Network
+UCYI_ychRnL7sJrG6PUSBpQA,CBN News,1,faith,Christian conservative news,affiliated,Christian Broadcasting Network
+UCmgnsaQIK1IR808Ebde-ssA,Breitbart,1,news,Conservative news outlet,affiliated,Breitbart News Network
+UCHqkXbgqrDrDVInBMSoGQgQ,The Daily Signal,1,news,Heritage Foundation news outlet,affiliated,The Heritage Foundation
+UCK7tptUDHh-RYDsdxO1-5QQ,Wall Street Journal,1,news,Conservative leaning financial news,affiliated,Dow Jones & Company
+UCO0akufu9MOzyz3nvGIXAAw,Sky News Australia,1,news,Often covers US conservative politics,affiliated,News Corp Australia
+UCrvhNP_lWuPIP6QZzJmM-bw,New York Post,1,news,Conservative leaning newspaper,affiliated,News Corp
+UCsCE4IMMFuwPYbwDqaz7udQ,The Washington Times,1,news,Conservative daily newspaper,affiliated,Operations Holdings
+UCMGZ8pfQHgZ6Yj0-92PMENg,Real America's Voice,1,network,Conservative television network,affiliated,Performance One Media
+UCZWlSUNDvCCS1hBiXV0zKcA,PragerU,1,culture,Conservative educational videos,affiliated,PragerU
+UC8Ioh4atNDO5a0Vy2qFmauQ,NTD News,1,news,Epoch Times affiliated network,affiliated,Epoch Media Group
+UCeLc4heXqG9dtL7jiPHMBfQ,Epoch Times,1,news,Conservative newspaper,affiliated,Epoch Media Group
+UCgV4zjmG_mUuCl_VwcXoRgg,Salem News Channel,1,network,Conservative radio network,affiliated,Salem Media Group
+UCnQC_G5Xsjhp9fEJKuIcrSw,Ben Shapiro,2,commentator,Daily Wire founder,independent,
+UCLwNTXWEjVd2qIHLcXxQWxA,Timcast IRL,2,commentator,Tim Pool's nightly show,independent,
+UCO01ytfzgXYy4glnPJm4PPQ,Matt Walsh,2,commentator,Daily Wire host,independent,
+UCvqtzdcURSqNjY9RQEK4XmQ,Glenn Beck,2,commentator,Blaze Media founder,independent,
+UCIveFvW-ARp_B_RckhweNJw,Steven Crowder,2,commentator,Louder with Crowder,independent,
+UCm0ZCU4Svnq9f46AOiYvONw,Mark Levin,2,commentator,Conservative radio host,independent,
+UCJuHKSaD0o7mX6jSbvisnvg,Dan Bongino,2,commentator,Conservative podcaster,independent,
+UCzJXNzqz6VMHSNInQt_7q6w,Megyn Kelly,2,commentator,Former Fox News anchor,independent,
+UCr4kgAUTFkGIwlWSodg43QA,Michael Knowles,2,commentator,Daily Wire host,independent,
+UCL0u5uz7KZ9q-pe-VC8TY-w,Candace Owens,2,commentator,Conservative commentator,independent,
+UCfaIu2jO-fppCQV_lchCRIQ,Charlie Kirk,2,commentator,Turning Point USA founder,independent,
+UCGttrUON87gWfU6dMWm1fcA,Tucker Carlson,2,commentator,Former Fox News host,independent,
+UCJdKr0Bgd_5saZYqLCa9mng,Dave Rubin,2,commentator,The Rubin Report,independent,
+UCyhEZKz-LOwgktptEOh6_Iw,Andrew Klavan,2,commentator,Daily Wire host,independent,
+UCdFcGPb4xQ6X4QOoRU6ROYw,Brett Cooper,2,commentator,Daily Wire host (The Comments Section),independent,
+UCfXIeNDtl1wvsAag4KaFlCw,Lauren Chen,2,commentator,BlazeTV contributor,independent,
+UCzGiDDKdphJ0GFvEd82WfYQ,Viva Frei,2,commentator,Conservative legal analyst,independent,
+UCIHdDJ0tjn_3j-FS7s_X1kQ,Patrick Bet-David,2,economics,Valuetainment founder,independent,
+UC4OvD2yIbofl9l4dIlqSNMw,Bill O'Reilly,2,commentator,Former Fox News anchor,independent,
+UC8GAOCAJxBL4bExaUCvwL4Q,Dinesh D'Souza,2,commentator,Conservative filmmaker,independent,
+UCfwE_ODI1YTbdjkzuSi1Nag,The Quartering,3,culture,Anti-woke pop culture commentator,independent,
+UCaYw_yJ_YLPEv6zR2c7hgHA,The Officer Tatum,3,commentator,Conservative political commentator,independent,
+UCgEvEKgmQ-CHPIeOSaGCffw,Amala Ekpunobi,3,culture,PragerU personality,independent,
+UC4FhvdvgZU5CVbXi2uWgiZg,HodgeTwins,3,satire,Conservative comedy duo,independent,
+UCwUizOU8pPWXdXNniXypQEQ,AwakenWithJP,3,satire,Conservative satirical comedian,independent,
+UCKkW8kJRYo0GXd1asPX3Z9Q,Black Conservative Perspective,3,commentator,Conservative news commentary,independent,
+UCswH8ovgUp5Bdg-0_JTYFNw,Russell Brand,3,commentator,Anti-establishment commentator,independent,
+UCoJhK5kMc4LjBKdiYrDtzlA,Redacted,3,news,Alternative news with Clayton Morris,independent,
+UCSFy-1JrpZf0tFlRZfo-Rvw,Sydney Watson,3,culture,Conservative political and social commentator,independent,
+UCIr4vkCsn0tdTW2xZ1jRG1g,Liberal Hivemind,3,commentator,Conservative news reaction channel,independent,
+UC8c-i0G5ySY3giqIQepEjcQ,Salty Cracker,3,commentator,Vocal conservative commentary,independent,
+UCzzLIhDbFYU46T4VFBz_m_g,Actual Justice Warrior,3,commentator,Criminal justice commentary,independent,
+UCwpDBy43upJR7LZLrgnKkPA,"Don't Walk, Run! Productions",3,news,Conservative political reporting,independent,
+UCf1EWeQ7DefD6Ds3KdeQ-uQ,Mr Reagan,3,commentator,Conservative political commentary,independent,
+UCQNqxS0Fu6CmzmVHSlnrShw,Nuance Bro,3,commentator,On-the-ground conservative interviews,independent,
+UC_UNKNOWN_ElijahSchaffer,Elijah Schaffer,3,commentator,Slightly Offensive podcast,independent,
+UCu8ebUHoKbhVY0tavNdhwvw,Anthony Brian Logan,3,commentator,Conservative political commentary,independent,
+UCQa62kyOcsyhVUqyvRCbDNQ,Robert Gouveia,3,commentator,Conservative legal analysis,independent,
+UC7edjYPNhTm5LYJMT7UMt0Q,The Lotus Eaters,3,culture,Carl Benjamin's podcast,independent,
+UCIpwPuJsrboNnf200oV8cWQ,Fleccas Talks,3,culture,Conservative street interviews,independent,
