@@ -2,12 +2,27 @@
 Flask Application for YT Temperature Dashboard
 """
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import sqlite3
 import datetime
+import os
+import functools
 
 app = Flask(__name__)
+app.secret_key = os.getenv('ADMIN_SECRET_KEY', 'change-me-in-production')
 DB_PATH = "data/yt_temperature.db"
+
+ADMIN_USER = os.getenv('ADMIN_USER', 'admin')
+ADMIN_PASS = os.getenv('ADMIN_PASS', 'polisignal')
+
+def admin_required(f):
+    """Decorator: redirect to login if not authenticated."""
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            return redirect(url_for('admin_login', next=request.path))
+        return f(*args, **kwargs)
+    return decorated
 
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=20.0)
@@ -759,12 +774,34 @@ def api_divergence():
 
 # ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────
 
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        if username == ADMIN_USER and password == ADMIN_PASS:
+            session['admin_logged_in'] = True
+            next_url = request.args.get('next', '/admin')
+            return redirect(next_url)
+        error = 'Invalid credentials. Please try again.'
+    return render_template('admin_login.html', error=error)
+
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('admin_login'))
+
+
 @app.route('/admin')
+@admin_required
 def admin():
     return render_template('admin.html')
 
 
 @app.route('/api/system_health')
+@admin_required
 def api_system_health():
     conn = get_db()
     c = conn.cursor()
@@ -832,6 +869,7 @@ def api_system_health():
 
 
 @app.route('/api/admin/channels', methods=['GET'])
+@admin_required
 def admin_get_channels():
     conn = get_db()
     c = conn.cursor()
@@ -847,6 +885,7 @@ def admin_get_channels():
 
 
 @app.route('/api/admin/channels', methods=['POST'])
+@admin_required
 def admin_add_channel():
     data = request.get_json()
     if not data or not data.get('channel_id') or not data.get('channel_name'):
@@ -881,6 +920,7 @@ def admin_add_channel():
 
 
 @app.route('/api/admin/channels/<channel_id>', methods=['DELETE'])
+@admin_required
 def admin_delete_channel(channel_id):
     conn = get_db()
     c = conn.cursor()

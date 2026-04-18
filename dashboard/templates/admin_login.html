@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login — YT PoliSignal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        econred: '#e3120b',
+                        econdark: '#111111',
+                    },
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'Georgia', 'serif'],
+                        sans: ['"Inter"', 'Helvetica', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center font-sans antialiased">
+
+    <!-- Logo -->
+    <div class="mb-8 flex flex-col items-center">
+        <div class="bg-econred text-white w-36 py-3 px-4 flex flex-col justify-center text-center mb-4">
+            <span class="font-serif text-[18px] leading-none mb-0.5">YT</span>
+            <span class="font-serif text-[24px] leading-none font-bold" style="letter-spacing: -1px;">PoliSignal</span>
+        </div>
+        <p class="text-[11px] font-bold uppercase tracking-widest text-gray-400 font-sans">System Administration</p>
+    </div>
+
+    <!-- Login Card -->
+    <div class="bg-white border border-gray-300 shadow-sm w-full max-w-sm mx-4">
+        <div class="border-b-[2px] border-black px-8 pt-6 pb-4">
+            <h1 class="font-serif text-xl font-bold text-black tracking-tight">Secure Access</h1>
+            <p class="text-xs text-gray-500 font-sans mt-1">Admin credentials required to proceed.</p>
+        </div>
+
+        <form method="POST" action="/admin/login" class="px-8 py-6 space-y-5">
+
+            {% if error %}
+            <div class="bg-red-50 border border-econred px-4 py-3 text-sm text-econred font-sans font-semibold flex items-center gap-2">
+                <span>⚠</span>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans" for="username">Username</label>
+                <input id="username" name="username" type="text" required autocomplete="username"
+                       class="border border-gray-300 px-3 py-2.5 text-sm font-sans focus:outline-none focus:border-black transition w-full"
+                       placeholder="admin">
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans" for="password">Password</label>
+                <input id="password" name="password" type="password" required autocomplete="current-password"
+                       class="border border-gray-300 px-3 py-2.5 text-sm font-sans focus:outline-none focus:border-black transition w-full"
+                       placeholder="••••••••••">
+            </div>
+
+            <button type="submit"
+                    class="w-full bg-black text-white font-bold text-sm py-3 font-sans hover:bg-econred transition">
+                Sign In →
+            </button>
+
+        </form>
+    </div>
+
+    <p class="mt-8 text-xs text-gray-400 font-sans">
+        Set credentials via <code class="bg-gray-100 px-1 py-0.5 text-xs">ADMIN_USER</code> and
+        <code class="bg-gray-100 px-1 py-0.5 text-xs">ADMIN_PASS</code> in your <code class="bg-gray-100 px-1 py-0.5 text-xs">.env</code> file.
+    </p>
+
+</body>
+</html>

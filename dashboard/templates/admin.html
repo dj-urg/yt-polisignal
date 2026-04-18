@@ -19,6 +19,7 @@
       <span class="w-2.5 h-2.5 rounded-full" :class="health.last_poll ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></span>
       <span class="text-xs font-bold font-sans uppercase tracking-widest" x-text="health.last_poll ? 'Poller Active' : 'No Activity'"></span>
       <button @click="refreshHealth()" class="ml-4 text-xs font-bold border border-black px-3 py-1.5 hover:bg-black hover:text-white transition font-sans">↻ Refresh</button>
+      <a href="/admin/logout" class="text-xs font-bold border border-gray-300 px-3 py-1.5 hover:bg-econred hover:text-white hover:border-econred transition font-sans">Sign Out</a>
     </div>
   </div>
 
