@@ -28,9 +28,7 @@ def migrate_channels_table(conn):
 def init_db():
     """Initializes the database schema."""
     conn = get_connection()
-    migrate_channels_table(conn)
     cursor = conn.cursor()
-
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS channels (
             channel_id      TEXT PRIMARY KEY,
@@ -42,6 +40,8 @@ def init_db():
             last_updated    TIMESTAMP
         )
     ''')
+    
+    migrate_channels_table(conn)
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS videos (
