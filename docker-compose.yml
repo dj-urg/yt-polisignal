@@ -15,7 +15,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/app/data:ro
+      - ./data:/app/data
     restart: unless-stopped
     depends_on:
       - poller
