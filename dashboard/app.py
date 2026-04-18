@@ -42,6 +42,10 @@ def methodology():
 def channels():
     return render_template('channels.html')
 
+@app.route('/analytics')
+def analytics():
+    return render_template('analytics.html')
+
 @app.route('/api/channels_list')
 def api_channels_list():
     conn = get_db()

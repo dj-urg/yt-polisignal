@@ -2,17 +2,7 @@
 
 {% block head_scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <style>
-/* Economist theme styling mapping */
-.loading-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; color: #666; font-family: serif; font-style: italic; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-
-/* Network graph node labels */
-.node-label { font-size: 11px; fill: #111; pointer-events: none; font-family: 'Inter', sans-serif; font-weight: bold; }
-
-/* The "World In Brief" Economist style */
 .briefing-card {
   font-family: 'Playfair Display', serif;
   background: #ffffff;
@@ -24,282 +14,188 @@
   border-bottom: 1px solid #ccc;
 }
 .briefing-card p { margin-bottom: 1rem; }
-
-/* Keyword pills */
-.keyword-pill {
-  display: inline-block; padding: 2px 6px; border: 1px solid #111;
-  font-size: 0.70rem; font-weight: 700; background: #ffffff; color: #111;
-  text-transform: uppercase; margin: 2px;
-}
-
-/* Heat tiers */
-.heat-critical { border-left: 3px solid #e3120b; color: #111; }
-.heat-hot { border-left: 3px solid #ff7b00; color: #111; }
-.heat-warm { border-left: 3px solid #ffd000; color: #111; }
-.heat-normal { border-left: 3px solid #bbb; color: #666; }
-
-/* Divergence backgrounds */
-.bg-grassroots { background-color: #f0fdf4; border-color: #bbf7d0; }
-.bg-affiliated { background-color: #eff6ff; border-color: #bfdbfe; }
-.bg-balanced { background-color: #f9fafb; border-color: #e5e7eb; }
-
-/* Adjacency list */
-.tabular-leaderboard tr { border-bottom: 1px solid #eee; }
-.tabular-leaderboard td { padding: 4px 0; font-size: 0.85rem; }
-
-/* Banner */
-.calib-banner {
-  background: #fef08a; border-bottom: 2px solid #eab308; color: #854d0e;
-}
+.calib-banner { background: #fef08a; border-bottom: 2px solid #eab308; color: #854d0e; }
 </style>
 {% endblock %}
 
 {% block content %}
-<main class="grid grid-cols-1 md:grid-cols-12 gap-8 w-full pb-16" x-data="dashboardMungerAnalytics()" x-init="initData()">
-    
-    <!-- CALIBRATION BANNER -->
-    <div x-show="showCalibrationBanner" class="col-span-1 md:col-span-12 calib-banner p-3 text-sm font-sans font-bold flex justify-between items-center mb-4 mt-2">
-        <div>
-            <span class="mr-2">⚠</span> 
-            Re-calibrating: <span x-text="calibration_data.days_of_data"></span> days of data collected.
-            Engagement index and ecosystem pulse reach full accuracy at 14 days. Metrics are relative to available history.
-        </div>
-        <button @click="dismissBanner()" class="text-xs uppercase border border-yellow-600 px-2 py-1 hover:bg-yellow-200">Dismiss</button>
+<main class="grid grid-cols-1 md:grid-cols-12 gap-8 w-full pb-16"
+      x-data="overviewDashboard()" x-init="init()">
+
+  <!-- CALIBRATION BANNER -->
+  <div x-show="showCalibrationBanner"
+       class="col-span-12 calib-banner p-3 text-sm font-sans font-bold flex justify-between items-center mt-2">
+    <div>
+      <span class="mr-2">⚠</span>
+      Re-calibrating: <span x-text="cal.days_of_data"></span> days of data collected.
+      Full accuracy reached at 14 days.
+    </div>
+    <button @click="dismissBanner()" class="text-xs uppercase border border-yellow-600 px-2 py-1 hover:bg-yellow-200">Dismiss</button>
+  </div>
+
+  <!-- ═══════════════════════ LEFT / CENTER ═══════════════════════ -->
+  <div class="md:col-span-8 space-y-10 pr-0 md:pr-8 md:border-r border-gray-300">
+
+    <!-- Summary Stats Strip -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-300 border border-gray-300">
+      <div class="bg-white p-4 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Channels Tracked</span>
+        <span class="text-4xl font-serif font-black text-black" x-text="summary.total_channels ?? '—'"></span>
+      </div>
+      <div class="bg-white p-4 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Videos (24h)</span>
+        <span class="text-4xl font-serif font-black text-black" x-text="summary.videos_last_24h ?? '—'"></span>
+      </div>
+      <div class="bg-white p-4 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Converging Keywords</span>
+        <span class="text-4xl font-serif font-black text-black" x-text="summary.top_converging_keywords?.length ?? '—'"></span>
+      </div>
+      <div class="bg-white p-4 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Surge Alerts</span>
+        <span class="text-4xl font-serif font-black text-black"
+              :class="(summary.surge_alerts?.length ?? 0) > 0 ? 'text-econred' : ''"
+              x-text="summary.surge_alerts?.length ?? '0'"></span>
+      </div>
     </div>
 
-    <!-- LEFT & CENTER BLOCKS -->
-    <div class="md:col-span-8 space-y-12 pr-0 md:pr-8 md:border-r border-gray-300">
-        
-        <!-- SECTION A: DEMAND SIGNAL PANEL -->
-        <div class="pt-2">
-            <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-6 flex justify-between items-end">
-                Demand Signals <span class="text-xs font-sans text-gray-500 font-normal uppercase" x-text="heat_status"></span>
-            </h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- Left Column: Engagement Heat Index -->
-                <div>
-                    <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Engagement Heat Index</h3>
-                    <div class="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                        <template x-for="(vid, i) in heat_data.heat_index?.slice(0,8)" :key="vid.video_id">
-                            <div class="pl-3 py-2 bg-gray-50" :class="'heat-' + vid.heat_tier">
-                                <div class="font-serif font-bold text-sm mb-1 leading-tight" x-text="vid.title"></div>
-                                <div class="text-[10px] font-sans text-gray-600 uppercase mb-1">
-                                    <span class="font-bold text-black" x-text="vid.channel_name"></span> · <span x-text="vid.affiliation_type"></span> · T<span x-text="vid.tier"></span>
-                                </div>
-                                <div class="text-xs font-sans">
-                                    <span class="font-bold text-econred" x-text="vid.heat_index.toFixed(1) + '× baseline'"></span>
-                                    <span class="text-gray-500 mx-1">|</span>
-                                    <span x-text="(vid.view_count/1000).toFixed(1) + 'K views'"></span>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                    
-                    <div class="flex justify-between items-center mt-3 pt-2 border-t border-gray-200">
-                        <div class="text-[10px] font-sans font-bold uppercase text-gray-600">
-                            Independent: <span class="text-black" x-text="(heat_data.summary?.independent_share * 100).toFixed(0) + '% of heat'"></span>
-                        </div>
-                        <div class="text-[10px] font-sans font-bold uppercase text-gray-600">
-                            Affiliated: <span class="text-black" x-text="(heat_data.summary?.affiliated_share * 100).toFixed(0) + '% of heat'"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right Column: Affiliation Divergence -->
-                <div>
-                    <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Affiliation Divergence</h3>
-                    
-                    <div class="space-y-4">
-                        <!-- Grassroots -->
-                        <div class="border p-3 bg-grassroots">
-                            <div class="text-[10px] font-sans font-bold uppercase text-green-800 mb-2 border-b border-green-200 pb-1">Grassroots Emerging</div>
-                            <template x-for="g in divergence_data.grassroots_emerging?.slice(0,3)" :key="g.keyword">
-                                <div class="flex justify-between items-center text-sm mb-1">
-                                    <span class="font-serif font-bold text-black" x-text="g.keyword"></span>
-                                    <div class="text-xs font-sans text-gray-700">
-                                        <span x-text="g.independent_count"></span> ind · <span x-text="g.affiliated_count"></span> aff <span class="text-green-700 font-bold ml-2">→ WATCH</span>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                        
-                        <!-- Affiliated -->
-                        <div class="border p-3 bg-affiliated">
-                            <div class="text-[10px] font-sans font-bold uppercase text-blue-800 mb-2 border-b border-blue-200 pb-1">Affiliated Pushing</div>
-                            <template x-for="a in divergence_data.affiliated_pushing?.slice(0,3)" :key="a.keyword">
-                                <div class="flex justify-between items-center text-sm mb-1">
-                                    <span class="font-serif font-bold text-black" x-text="a.keyword"></span>
-                                    <div class="text-xs font-sans text-gray-700">
-                                        <span x-text="a.affiliated_count"></span> aff · <span x-text="a.independent_count"></span> ind <span class="text-blue-700 font-bold ml-2">→ TOP-DOWN</span>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-
-                        <!-- Balanced -->
-                        <div class="border p-3 bg-balanced">
-                            <div class="text-[10px] font-sans font-bold uppercase text-gray-600 mb-2 border-b border-gray-200 pb-1">Balanced</div>
-                            <template x-for="b in divergence_data.balanced?.slice(0,3)" :key="b.keyword">
-                                <div class="flex justify-between items-center text-sm mb-1">
-                                    <span class="font-serif font-bold text-gray-800" x-text="b.keyword"></span>
-                                    <div class="text-xs font-sans text-gray-500">
-                                        <span x-text="b.independent_count"></span> ind · <span x-text="b.affiliated_count"></span> aff
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </div>
+    <!-- Hottest Videos -->
+    <div>
+      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
+        Fastest Growing Videos
+      </h2>
+      <div class="space-y-3">
+        <template x-for="(vid, i) in (summary.hottest_videos ?? []).slice(0,8)" :key="vid.video_id">
+          <div class="flex gap-4 items-start border-b border-gray-100 pb-3">
+            <span class="font-serif font-black text-gray-300 text-2xl w-8 pt-0.5" x-text="i+1"></span>
+            <div class="flex-1">
+              <div class="font-serif font-bold text-black text-sm leading-tight mb-1" x-text="vid.title"></div>
+              <div class="flex items-center gap-3 text-[11px] font-sans text-gray-500 flex-wrap">
+                <span class="font-bold text-black" x-text="vid.channel_name"></span>
+                <span>T<span x-text="vid.tier"></span></span>
+                <span class="font-bold text-econred" x-text="Math.round(vid.velocity).toLocaleString() + ' views/hr'"></span>
+                <span x-text="Math.round(vid.views/1000) + 'K total'"></span>
+              </div>
             </div>
+          </div>
+        </template>
+        <div x-show="!summary.hottest_videos?.length" class="text-sm text-gray-400 italic font-serif py-4">
+          Collecting data — first results appear after 30 minutes.
         </div>
-
-        <!-- CONVERGENCE NETWORK GRAPH (Existing) -->
-        <div class="pt-6 border-t border-gray-300">
-            <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4 flex justify-between items-end">
-                Narrative Convergence Model
-            </h2>
-            <div id="d3-container" class="w-full h-[400px] border border-gray-200 relative"></div>
-        </div>
-
-        <!-- SECTION B: SUPPLY-DEMAND FEEDBACK TRACKER -->
-        <div class="pt-6 border-t border-gray-300">
-            <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-2">
-                Audience Steering <span class="text-xs font-sans text-gray-500 font-normal uppercase" x-text="feedback_status"></span>
-            </h2>
-            <p class="text-[10.5px] font-sans text-gray-500 uppercase tracking-wide mb-6">Per Munger (2024): Independent YouTubers are not Creators but Creations of their audience.</p>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- Left: Timeline -->
-                <div>
-                    <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Recent Feedback Events</h3>
-                    <div class="space-y-4 max-h-[300px] overflow-y-auto">
-                        <template x-for="ev in feedback_data.recent_events" :key="ev.id">
-                            <div class="flex text-sm">
-                                <div class="w-20 text-xs font-sans text-gray-400 pt-1" x-text="formatTimeAgo(ev.detected_at)"></div>
-                                <div class="flex-1 border-l border-gray-200 pl-3">
-                                    <div class="mb-1">
-                                        <span class="font-serif font-bold text-black" x-text="ev.channel_name"></span> 
-                                        responded to <span class="font-bold bg-gray-100 px-1" x-text="'\'' + ev.keyword + '\''"></span> spike
-                                    </div>
-                                    <div class="text-xs font-sans text-econred mb-1">
-                                        ▲ <span x-text="ev.trigger_engagement_percentile.toFixed(0)"></span>th percentile engagement → <span x-text="ev.response_video_count"></span> follow-up videos in 72h
-                                    </div>
-                                    <div class="text-[10px] font-sans text-gray-500 uppercase">
-                                        [<span x-text="ev.affiliation_type"></span> · Tier <span x-text="ev.tier"></span>]
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- Right: Chart -->
-                <div>
-                    <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Most Audience-Responsive (30d)</h3>
-                    <div class="h-[200px] w-full mb-4">
-                        <canvas id="feedbackChart"></canvas>
-                    </div>
-                    
-                    <div class="bg-gray-50 p-3 border border-gray-200 text-sm font-serif italic text-black">
-                        💡 <span x-text="feedback_data.insight"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- SECTION C: ECOSYSTEM STABILITY MONITOR -->
-        <div class="pt-6 border-t border-gray-300">
-            <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4 flex justify-between items-end">
-                Ecosystem Rank Stability <span class="text-xs font-sans text-gray-500 font-normal uppercase" x-text="stability_status"></span>
-            </h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- Left: Movement Table -->
-                <div>
-                    <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3 flex justify-between">
-                        <span>Weekly Rank Movement</span>
-                        <span class="font-normal" x-text="'Week of ' + stability_data.current_week"></span>
-                    </h3>
-                    <table class="w-full text-sm font-sans mb-3">
-                        <thead class="text-xs text-gray-500 border-b border-gray-200">
-                            <tr><th class="text-left font-normal py-1">Channel</th><th class="text-right font-normal py-1">Rank</th><th class="text-right font-normal py-1">Change</th><th class="text-right font-normal py-1">Type</th></tr>
-                        </thead>
-                        <tbody>
-                            <!-- Risers -->
-                            <template x-for="r in stability_data.movers?.biggest_risers?.slice(0,3)">
-                                <tr class="border-b border-gray-100">
-                                    <td class="py-1.5 font-serif font-bold text-black" x-text="r.channel_name"></td>
-                                    <td class="py-1.5 text-right font-bold text-black">#<span x-text="r.current_rank"></span></td>
-                                    <td class="py-1.5 text-right font-bold text-green-600">▲ <span x-text="r.rank_change"></span></td>
-                                    <td class="py-1.5 text-right text-xs capitalize text-gray-500" x-text="r.affiliation_type"></td>
-                                </tr>
-                            </template>
-                            <!-- Fallers -->
-                            <template x-for="f in stability_data.movers?.biggest_fallers?.slice(0,3)">
-                                <tr class="border-b border-gray-100">
-                                    <td class="py-1.5 font-serif font-bold text-black" x-text="f.channel_name"></td>
-                                    <td class="py-1.5 text-right font-bold text-black">#<span x-text="f.current_rank"></span></td>
-                                    <td class="py-1.5 text-right font-bold text-econred">▼ <span x-text="Math.abs(f.rank_change)"></span></td>
-                                    <td class="py-1.5 text-right text-xs capitalize text-gray-500" x-text="f.affiliation_type"></td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
-                    
-                    <div class="text-xs font-sans font-bold flex items-center gap-2 p-2 bg-gray-50 border border-gray-200">
-                        <span>Ecosystem:</span> 
-                        <span class="px-2 py-0.5 text-white capitalize rounded-[2px]"
-                              :class="{
-                                'bg-blue-600': stability_data.ecosystem_stability?.interpretation === 'locked',
-                                'bg-green-600': stability_data.ecosystem_stability?.interpretation === 'stable',
-                                'bg-yellow-500': stability_data.ecosystem_stability?.interpretation === 'unsettled',
-                                'bg-red-600': stability_data.ecosystem_stability?.interpretation === 'volatile'
-                              }"
-                              x-text="stability_data.ecosystem_stability?.interpretation">
-                        </span>
-                        <span class="text-gray-500 font-normal ml-2">Median shift: <span x-text="stability_data.ecosystem_stability?.median_rank_change"></span> pos/week</span>
-                    </div>
-                </div>
-
-                <!-- Right: Sparkline -->
-                <div>
-                    <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Stability History</h3>
-                    <div class="h-[150px] w-full">
-                        <canvas id="stabilityChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
+      </div>
     </div>
 
-    <!-- RIGHT SIDEBAR -->
-    <div class="md:col-span-4 space-y-10">
-        
-        <!-- Pulse Gauge -->
-        <div>
-            <h2 class="text-lg font-serif font-black text-black border-b-[2px] border-black pb-1 mb-0 tracking-tight uppercase flex justify-between items-end">
-                Ecosystem Pulse <span class="text-[10px] font-sans font-normal text-gray-500 lowercase" x-text="pulse_status"></span>
-            </h2>
-            <div id="pulse-container" class="relative h-[180px] w-full flex flex-col items-center justify-end overflow-hidden pb-4 pt-4 border-b border-gray-300">
-                <canvas id="pulseGauge"></canvas>
-                <div class="absolute bottom-6 text-center">
-                    <div class="text-4xl font-serif font-black text-black leading-none" x-text="pulse_data.current ? Math.round(pulse_data.current) : '--'"></div>
-                    <div class="text-xs font-sans font-bold uppercase text-gray-500">Relative Activity</div>
-                </div>
-            </div>
+    <!-- Top Converging Keywords -->
+    <div>
+      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
+        Converging Keywords <span class="text-xs font-sans font-normal text-gray-500 uppercase">last 24h · across 3+ channels</span>
+      </h2>
+      <div class="flex flex-wrap gap-2">
+        <template x-for="kw in (summary.top_converging_keywords ?? []).slice(0,20)" :key="kw.keyword">
+          <span class="inline-flex items-center gap-1.5 border border-gray-300 px-2.5 py-1 text-xs font-bold font-sans uppercase tracking-wider hover:border-econred hover:text-econred transition cursor-default">
+            <span x-text="kw.keyword"></span>
+            <span class="text-gray-400 font-normal" x-text="'×' + kw.channel_count"></span>
+          </span>
+        </template>
+        <div x-show="!summary.top_converging_keywords?.length" class="text-sm text-gray-400 italic font-serif">
+          No cross-channel keywords yet.
         </div>
-
-        <!-- The World in Brief -->
-        <div>
-            <h2 class="text-sm font-sans font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3 flex justify-between">
-                The World in Brief <span class="text-[10px] text-gray-500 font-normal italic lowercase mt-1" x-text="briefing_status"></span>
-            </h2>
-            <div class="briefing-card" x-html="formatBriefing(briefing_data.briefing)"></div>
-        </div>
-
+      </div>
     </div>
+
+    <!-- Channel Activity Table -->
+    <div>
+      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
+        Channel Activity <span class="text-xs font-sans font-normal text-gray-500 uppercase">last 24h</span>
+      </h2>
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr class="border-b-[2px] border-black text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">
+            <th class="text-left py-2">Channel</th>
+            <th class="text-right py-2">Tier</th>
+            <th class="text-right py-2">Videos Today</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="ch in sortedActivity.slice(0,15)" :key="ch.channel_name">
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+              <td class="py-2 font-serif font-bold text-black" x-text="ch.channel_name"></td>
+              <td class="py-2 text-right">
+                <span class="text-[10px] font-bold border px-1.5 py-0.5"
+                      :class="ch.tier==1?'bg-black text-white border-black':ch.tier==2?'bg-gray-200 border-gray-400':'border-econred text-econred'"
+                      x-text="'T' + ch.tier"></span>
+              </td>
+              <td class="py-2 text-right font-mono font-bold"
+                  :class="ch.videos_today > 0 ? 'text-black' : 'text-gray-300'"
+                  x-text="ch.videos_today"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════ RIGHT SIDEBAR ═══════════════════════ -->
+  <div class="md:col-span-4 space-y-10">
+
+    <!-- Ecosystem Pulse Gauge -->
+    <div>
+      <h2 class="text-lg font-serif font-black text-black border-b-[2px] border-black pb-1 mb-0 uppercase flex justify-between items-end">
+        Ecosystem Pulse
+        <span class="text-[10px] font-sans font-normal text-gray-500 lowercase" x-text="pulse_status"></span>
+      </h2>
+      <div class="relative h-[180px] w-full flex flex-col items-center justify-end overflow-hidden pb-4 pt-4 border-b border-gray-300">
+        <canvas id="pulseGauge"></canvas>
+        <div class="absolute bottom-6 text-center">
+          <div class="text-4xl font-serif font-black text-black leading-none"
+               x-text="pulse_data.current ? Math.round(pulse_data.current) : '—'"></div>
+          <div class="text-xs font-sans font-bold uppercase text-gray-500">Relative Activity</div>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-px bg-gray-200 mt-0">
+        <div class="bg-white text-center py-2">
+          <div class="text-[10px] uppercase font-bold text-gray-400 font-sans">T1</div>
+          <div class="font-serif font-bold text-sm" x-text="pulse_data.components?.tier1_score ? Math.round(pulse_data.components.tier1_score) : '—'"></div>
+        </div>
+        <div class="bg-white text-center py-2">
+          <div class="text-[10px] uppercase font-bold text-gray-400 font-sans">T2</div>
+          <div class="font-serif font-bold text-sm" x-text="pulse_data.components?.tier2_score ? Math.round(pulse_data.components.tier2_score) : '—'"></div>
+        </div>
+        <div class="bg-white text-center py-2">
+          <div class="text-[10px] uppercase font-bold text-gray-400 font-sans">T3</div>
+          <div class="font-serif font-bold text-sm" x-text="pulse_data.components?.tier3_score ? Math.round(pulse_data.components.tier3_score) : '—'"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- The World in Brief -->
+    <div>
+      <h2 class="text-sm font-sans font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3 flex justify-between">
+        The World in Brief
+        <span class="text-[10px] text-gray-500 font-normal italic lowercase mt-1" x-text="briefing_status"></span>
+      </h2>
+      <div class="briefing-card" x-html="formatBriefing(briefing_data.briefing)"></div>
+    </div>
+
+    <!-- Surge Alerts -->
+    <div x-show="summary.surge_alerts?.length > 0">
+      <h2 class="text-sm font-sans font-bold uppercase tracking-widest text-econred border-b-[2px] border-econred pb-1 mb-3">
+        ▲ Surge Alerts
+      </h2>
+      <div class="space-y-3">
+        <template x-for="s in (summary.surge_alerts ?? [])" :key="s.video_id">
+          <div class="border-l-4 border-econred pl-3 py-1">
+            <div class="font-serif font-bold text-black text-sm leading-tight" x-text="s.title"></div>
+            <div class="text-[11px] font-sans text-gray-500 mt-0.5">
+              <span x-text="s.channel_name"></span> ·
+              <span class="font-bold text-econred" x-text="Math.round(s.velocity).toLocaleString() + '/hr'"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+  </div>
 
 </main>
 {% endblock %}
@@ -307,213 +203,90 @@
 {% block bottom_scripts %}
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('dashboardMungerAnalytics', () => ({
-        pulse_data: {}, pulse_status: 'syncing...',
-        heat_data: {}, heat_status: 'syncing...',
-        divergence_data: {}, divergence_status: 'syncing...',
-        feedback_data: {}, feedback_status: 'syncing...',
-        stability_data: {}, stability_status: 'syncing...',
-        convergence_data: {}, convergence_status: 'syncing...',
-        calibration_data: {},
-        briefing_data: { briefing: "Compiling intelligence..." }, briefing_status: 'syncing...',
-        
-        showCalibrationBanner: false,
-        pulseInstance: null, fbInstance: null, stabInstance: null,
-        d3Svg: null, d3Sim: null,
+  Alpine.data('overviewDashboard', () => ({
+    summary: {},
+    pulse_data: {}, pulse_status: 'syncing…',
+    briefing_data: { briefing: 'Compiling intelligence…' }, briefing_status: 'syncing…',
+    cal: {},
+    showCalibrationBanner: false,
+    pulseInstance: null,
 
-        async initData() {
-            Chart.defaults.font.family = '"Inter", sans-serif';
-            Chart.defaults.color = '#111';
+    async init() {
+      Chart.defaults.font.family = '"Inter", sans-serif';
+      Chart.defaults.color = '#111';
 
-            await this.fetchCalibration();
-            
-            this.fetchHeat();
-            this.fetchDivergence();
-            this.fetchFeedback();
-            this.fetchStability();
-            this.fetchConvergence();
-            this.fetchPulse();
-            this.fetchBriefing();
+      await Promise.all([this.fetchSummary(), this.fetchPulse(), this.fetchBriefing(), this.fetchCalibration()]);
 
-            setInterval(() => this.fetchHeat(),         6 * 60 * 1000);
-            setInterval(() => this.fetchDivergence(),   9 * 60 * 1000);
-            setInterval(() => this.fetchFeedback(),    15 * 60 * 1000);
-            setInterval(() => this.fetchStability(),   60 * 60 * 1000);
-            setInterval(() => this.fetchPulse(),        5 * 60 * 1000);
-            setInterval(() => this.fetchConvergence(),  7 * 60 * 1000);
-            setInterval(() => this.fetchCalibration(), 30 * 60 * 1000);
-        },
+      setInterval(() => this.fetchSummary(), 5 * 60 * 1000);
+      setInterval(() => this.fetchPulse(),   5 * 60 * 1000);
+      setInterval(() => this.fetchBriefing(), 30 * 60 * 1000);
+    },
 
-        async fetchCalibration() {
-            try {
-                const r = await fetch('/api/calibration');
-                this.calibration_data = await r.json();
-                
-                if (this.calibration_data.mode !== 'month') {
-                    const dismissedAt = localStorage.getItem('calib_dismissed');
-                    if (!dismissedAt || (new Date() - new Date(dismissedAt)) > 24 * 60 * 60 * 1000) {
-                        this.showCalibrationBanner = true;
-                    }
-                } else {
-                    this.showCalibrationBanner = false;
-                }
-            } catch(e) {}
-        },
-        
-        dismissBanner() {
-            this.showCalibrationBanner = false;
-            localStorage.setItem('calib_dismissed', new Date().toISOString());
-        },
-
-        async fetchHeat() { try { const r = await fetch('/api/engagement/heat'); this.heat_data = await r.json(); this.heat_status = 'live'; } catch(e) { this.heat_status='error';} },
-        async fetchDivergence() { try { const r = await fetch('/api/divergence'); this.divergence_data = await r.json(); } catch(e) {} },
-        
-        async fetchFeedback() { 
-            try { 
-                const r = await fetch('/api/feedback'); this.feedback_data = await r.json(); this.feedback_status = 'live';
-                this.renderFeedbackChart();
-            } catch(e) { this.feedback_status='error';} 
-        },
-        
-        async fetchStability() { 
-            try { 
-                const r = await fetch('/api/stability'); this.stability_data = await r.json(); this.stability_status = 'live';
-                this.renderStabilityChart();
-            } catch(e) { this.stability_status='error';} 
-        },
-
-        async fetchPulse() { try { const r = await fetch('/api/pulse'); this.pulse_data = await r.json(); this.pulse_status = 'live'; this.renderPulseGauge(); } catch(e) {} },
-        async fetchConvergence() { try { const r = await fetch('/api/topics/convergence'); this.convergence_data = await r.json(); this.renderD3Network(); } catch(e) {} },
-        async fetchBriefing() { try { const r = await fetch('/api/daily_briefing'); this.briefing_data = await r.json(); this.briefing_status = 'updated'; } catch(e) {} },
-
-        formatBriefing(text) { return text ? text.split('\n\n').map(p => '<p>' + p + '</p>').join('') : ""; },
-        
-        formatTimeAgo(isoStr) {
-            const date = new Date(isoStr);
-            const diff = (new Date() - date) / 1000; // seconds
-            if (diff < 3600) return Math.floor(diff/60) + ' min ago';
-            if (diff < 86400) return Math.floor(diff/3600) + ' hrs ago';
-            return Math.floor(diff/86400) + ' days ago';
-        },
-
-        renderFeedbackChart() {
-            const ctx = document.getElementById('feedbackChart');
-            if(!this.feedback_data.most_feedback_responsive_channels) return;
-            
-            const data = this.feedback_data.most_feedback_responsive_channels.slice(0,5);
-            const labels = data.map(d => d.channel_name);
-            const counts = data.map(d => d.feedback_events_30d);
-            const colors = data.map(d => d.affiliation_type === 'independent' ? '#ea580c' : '#2563eb'); // Orange vs Blue
-
-            if(this.fbInstance) {
-                this.fbInstance.data.labels = labels;
-                this.fbInstance.data.datasets[0].data = counts;
-                this.fbInstance.data.datasets[0].backgroundColor = colors;
-                this.fbInstance.update();
-            } else {
-                this.fbInstance = new Chart(ctx, {
-                    type: 'bar',
-                    data: { labels, datasets: [{ data: counts, backgroundColor: colors }] },
-                    options: {
-                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: {display:false} },
-                        scales: { x: { display: false } }
-                    }
-                });
-            }
-        },
-
-        renderStabilityChart() {
-            const ctx = document.getElementById('stabilityChart');
-            if(!this.stability_data.history) return;
-            
-            const hist = [...this.stability_data.history].reverse();
-            const labels = hist.map(h => h.week_of);
-            const data = hist.map(h => h.median_rank_change);
-
-            if(this.stabInstance) {
-                this.stabInstance.data.labels = labels;
-                this.stabInstance.data.datasets[0].data = data;
-                this.stabInstance.update();
-            } else {
-                this.stabInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: { labels, datasets: [{ data, borderColor: '#111', borderWidth: 2, tension: 0.1, fill: true, backgroundColor: 'rgba(0,0,0,0.05)' }] },
-                    options: {
-                        responsive: true, maintainAspectRatio: false, plugins: { legend: {display:false} },
-                        scales: { y: { min: 0 } },
-                        plugins: {
-                            annotation: {
-                                annotations: {
-                                    line1: { type: 'line', yMin: 6, yMax: 6, borderColor: '#eab308', borderDash: [5,5] },
-                                    line2: { type: 'line', yMin: 10, yMax: 10, borderColor: '#dc2626', borderDash: [5,5] }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-        },
-
-        renderPulseGauge() {
-            const ctx = document.getElementById('pulseGauge');
-            const score = Math.min(this.pulse_data.current || 0, 200);
-            let color = '#ccc';
-            if (score > 150) color = '#e3120b'; 
-            else if (score > 100) color = '#111111'; 
-            else if (score > 50) color = '#555555'; 
-
-            if (this.pulseInstance) {
-                this.pulseInstance.data.datasets[0].data = [score, 200 - score];
-                this.pulseInstance.data.datasets[0].backgroundColor[0] = color;
-                this.pulseInstance.update();
-            } else {
-                this.pulseInstance = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: { datasets: [{ data: [score, 200 - score], backgroundColor: [color, '#f0f0f0'], borderWidth: 0, circumference: 180, rotation: 270 }] },
-                    options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { tooltip: {enabled: false}, legend:{display:false} } }
-                });
-            }
-        },
-
-        renderD3Network() {
-            const container = document.getElementById('d3-container');
-            container.innerHTML = '';
-            if(!this.convergence_data.nodes || this.convergence_data.nodes.length === 0) return;
-            
-            const width = container.clientWidth; const height = container.clientHeight;
-            const svg = d3.select(container).append("svg").attr("width", width).attr("height", height);
-
-            const simulation = d3.forceSimulation(this.convergence_data.nodes)
-                .force("link", d3.forceLink(this.convergence_data.edges).id(d => d.id).distance(120))
-                .force("charge", d3.forceManyBody().strength(-300))
-                .force("center", d3.forceCenter(width / 2, height / 2));
-
-            const maxStrength = Math.max(...this.convergence_data.edges.map(e => e.strength), 1);
-
-            const link = svg.append("g").selectAll("line").data(this.convergence_data.edges).join("line")
-                .attr("stroke", d => d3.interpolateReds(d.strength / maxStrength))
-                .attr("stroke-width", d => Math.min(d.strength * 1.5, 6));
-
-            const node = svg.append("g").selectAll("circle").data(this.convergence_data.nodes).join("circle")
-                .attr("r", d => Math.min((d.video_count_24h || 1) * 1.5 + 4, 30))
-                .attr("fill", d => d.tier === 1 ? "#111" : d.tier === 2 ? "#555" : "#e4e4e4")
-                .attr("stroke", d => d.tier === 3 ? "#e3120b" : "#fff").attr("stroke-width", 2)
-                .call(d3.drag().on("start", e => { if(!e.active) simulation.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
-                       .on("drag", e => { e.subject.fx = e.x; e.subject.fy = e.y; })
-                       .on("end", e => { if(!e.active) simulation.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
-
-            const labels = svg.append("g").selectAll("text").data(this.convergence_data.nodes).join("text")
-                .attr("class", "node-label").attr("dy", 4).attr("dx", d => Math.min((d.video_count_24h || 1) * 1.5 + 4, 30) + 4)
-                .text(d => (d.video_count_24h || 1) > 1 ? d.name : "");
-
-            simulation.on("tick", () => {
-                link.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-                node.attr("cx", d => d.x = Math.max(15, Math.min(width - 15, d.x))).attr("cy", d => d.y = Math.max(15, Math.min(height - 15, d.y)));
-                labels.attr("x", d => d.x).attr("y", d => d.y);
-            });
+    async fetchSummary() {
+      try { const r = await fetch('/api/summary'); this.summary = await r.json(); } catch(e) {}
+    },
+    async fetchPulse() {
+      try {
+        const r = await fetch('/api/pulse');
+        this.pulse_data = await r.json();
+        this.pulse_status = 'live';
+        this.renderPulseGauge();
+      } catch(e) { this.pulse_status = 'error'; }
+    },
+    async fetchBriefing() {
+      try {
+        const r = await fetch('/api/daily_briefing');
+        this.briefing_data = await r.json();
+        this.briefing_status = 'updated';
+      } catch(e) {}
+    },
+    async fetchCalibration() {
+      try {
+        const r = await fetch('/api/calibration');
+        this.cal = await r.json();
+        if (this.cal.mode !== 'month') {
+          const d = localStorage.getItem('calib_dismissed');
+          if (!d || (new Date() - new Date(d)) > 24 * 60 * 60 * 1000) {
+            this.showCalibrationBanner = true;
+          }
         }
-    }));
+      } catch(e) {}
+    },
+
+    dismissBanner() {
+      this.showCalibrationBanner = false;
+      localStorage.setItem('calib_dismissed', new Date().toISOString());
+    },
+
+    get sortedActivity() {
+      return [...(this.summary.channel_activity ?? [])].sort((a,b) => b.videos_today - a.videos_today);
+    },
+
+    formatBriefing(text) {
+      return text ? text.split('\n\n').map(p => '<p>' + p + '</p>').join('') : '';
+    },
+
+    renderPulseGauge() {
+      const ctx = document.getElementById('pulseGauge');
+      const score = Math.min(this.pulse_data.current || 0, 200);
+      let color = '#ccc';
+      if (score > 150) color = '#e3120b';
+      else if (score > 100) color = '#111111';
+      else if (score > 50) color = '#555555';
+
+      if (this.pulseInstance) {
+        this.pulseInstance.data.datasets[0].data = [score, 200 - score];
+        this.pulseInstance.data.datasets[0].backgroundColor[0] = color;
+        this.pulseInstance.update();
+      } else {
+        this.pulseInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: { datasets: [{ data: [score, 200 - score], backgroundColor: [color, '#f0f0f0'], borderWidth: 0, circumference: 180, rotation: 270 }] },
+          options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { tooltip: { enabled: false }, legend: { display: false } } }
+        });
+      }
+    }
+  }));
 });
 </script>
 {% endblock %}

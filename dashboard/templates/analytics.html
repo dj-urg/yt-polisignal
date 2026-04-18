@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block head_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+.node-label { font-size: 11px; fill: #111; pointer-events: none; font-family: 'Inter', sans-serif; font-weight: bold; }
+.heat-critical { border-left: 3px solid #e3120b; }
+.heat-hot      { border-left: 3px solid #ff7b00; }
+.heat-warm     { border-left: 3px solid #ffd000; }
+.heat-normal   { border-left: 3px solid #bbb; color: #666; }
+.bg-grassroots { background-color: #f0fdf4; border-color: #bbf7d0; }
+.bg-affiliated { background-color: #eff6ff; border-color: #bfdbfe; }
+.bg-balanced   { background-color: #f9fafb; border-color: #e5e7eb; }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="grid grid-cols-1 md:grid-cols-12 gap-8 w-full pb-16"
+      x-data="analyticsDashboard()" x-init="init()">
+
+  <!-- Page Header -->
+  <div class="col-span-12 border-b-[2px] border-black pb-3">
+    <h1 class="text-3xl font-serif font-black text-black tracking-tight" style="letter-spacing: -0.02em;">Advanced Analytics</h1>
+    <p class="text-xs font-sans text-gray-500 mt-1 uppercase tracking-widest font-semibold">Demand-Side Intelligence · Munger Framework (2024)</p>
+  </div>
+
+  <!-- ═══════════════════════ LEFT / CENTER ═══════════════════════ -->
+  <div class="md:col-span-8 space-y-12 pr-0 md:pr-8 md:border-r border-gray-300">
+
+    <!-- A: Engagement Heat Index + Affiliation Divergence -->
+    <section>
+      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-6 flex justify-between items-end">
+        Demand Signals <span class="text-xs font-sans text-gray-500 font-normal uppercase" x-text="heat_status"></span>
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Engagement Heat Index -->
+        <div>
+          <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Engagement Heat Index</h3>
+          <div class="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+            <template x-for="vid in (heat_data.heat_index ?? []).slice(0,8)" :key="vid.video_id">
+              <div class="pl-3 py-2 bg-gray-50" :class="'heat-' + vid.heat_tier">
+                <div class="font-serif font-bold text-sm mb-1 leading-tight" x-text="vid.title"></div>
+                <div class="text-[10px] font-sans text-gray-600 uppercase mb-1">
+                  <span class="font-bold text-black" x-text="vid.channel_name"></span>
+                  · <span x-text="vid.affiliation_type"></span>
+                  · T<span x-text="vid.tier"></span>
+                </div>
+                <div class="text-xs font-sans">
+                  <span class="font-bold text-econred" x-text="vid.heat_index.toFixed(1) + '× baseline'"></span>
+                  <span class="text-gray-500 mx-1">|</span>
+                  <span x-text="(vid.view_count/1000).toFixed(1) + 'K views'"></span>
+                </div>
+              </div>
+            </template>
+            <div x-show="!heat_data.heat_index?.length" class="text-sm italic text-gray-400 font-serif py-4">
+              Collecting engagement data — available after first API cycle (~36 min).
+            </div>
+          </div>
+          <div class="flex justify-between mt-3 pt-2 border-t border-gray-200 text-[10px] font-sans font-bold uppercase text-gray-600">
+            <span>Independent: <span class="text-black" x-text="((heat_data.summary?.independent_share ?? 0) * 100).toFixed(0) + '%'"></span></span>
+            <span>Affiliated: <span class="text-black" x-text="((heat_data.summary?.affiliated_share ?? 0) * 100).toFixed(0) + '%'"></span></span>
+          </div>
+        </div>
+
+        <!-- Affiliation Divergence -->
+        <div>
+          <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Affiliation Divergence</h3>
+          <div class="space-y-3">
+            <div class="border p-3 bg-grassroots">
+              <div class="text-[10px] font-sans font-bold uppercase text-green-800 mb-2 border-b border-green-200 pb-1">Grassroots Emerging → Watch</div>
+              <template x-for="g in (divergence_data.grassroots_emerging ?? []).slice(0,4)" :key="g.keyword">
+                <div class="flex justify-between items-center text-sm mb-1.5">
+                  <span class="font-serif font-bold text-black" x-text="g.keyword"></span>
+                  <span class="text-xs font-sans text-gray-600">
+                    <span x-text="g.independent_count"></span> ind · <span x-text="g.affiliated_count"></span> aff
+                  </span>
+                </div>
+              </template>
+              <div x-show="!divergence_data.grassroots_emerging?.length" class="text-xs italic text-gray-400">No divergence detected yet.</div>
+            </div>
+
+            <div class="border p-3 bg-affiliated">
+              <div class="text-[10px] font-sans font-bold uppercase text-blue-800 mb-2 border-b border-blue-200 pb-1">Affiliated Pushing → Top-Down</div>
+              <template x-for="a in (divergence_data.affiliated_pushing ?? []).slice(0,4)" :key="a.keyword">
+                <div class="flex justify-between items-center text-sm mb-1.5">
+                  <span class="font-serif font-bold text-black" x-text="a.keyword"></span>
+                  <span class="text-xs font-sans text-gray-600">
+                    <span x-text="a.affiliated_count"></span> aff · <span x-text="a.independent_count"></span> ind
+                  </span>
+                </div>
+              </template>
+            </div>
+
+            <div class="border p-3 bg-balanced">
+              <div class="text-[10px] font-sans font-bold uppercase text-gray-600 mb-2 border-b border-gray-200 pb-1">Balanced Coverage</div>
+              <template x-for="b in (divergence_data.balanced ?? []).slice(0,3)" :key="b.keyword">
+                <div class="flex justify-between items-center text-sm mb-1.5">
+                  <span class="font-serif font-bold text-gray-800" x-text="b.keyword"></span>
+                  <span class="text-xs font-sans text-gray-500">
+                    <span x-text="b.independent_count"></span> ind · <span x-text="b.affiliated_count"></span> aff
+                  </span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- B: Narrative Convergence Network -->
+    <section>
+      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
+        Narrative Convergence Network
+      </h2>
+      <p class="text-[10.5px] font-sans text-gray-500 uppercase tracking-wide mb-3">Channels linked by shared keyword usage in the last 24h. Node size = video count. Drag to explore.</p>
+      <div id="d3-container" class="w-full h-[400px] border border-gray-200 relative bg-gray-50"></div>
+      <div class="mt-2 flex gap-4 text-[10px] font-sans font-bold uppercase text-gray-500">
+        <span><span class="inline-block w-3 h-3 bg-black rounded-full mr-1"></span>Tier 1</span>
+        <span><span class="inline-block w-3 h-3 bg-gray-500 rounded-full mr-1"></span>Tier 2</span>
+        <span><span class="inline-block w-3 h-3 bg-gray-300 border border-econred rounded-full mr-1"></span>Tier 3</span>
+      </div>
+    </section>
+
+    <!-- C: Audience Feedback Loops -->
+    <section>
+      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-2 flex justify-between items-end">
+        Audience Steering <span class="text-xs font-sans text-gray-500 font-normal uppercase" x-text="feedback_status"></span>
+      </h2>
+      <p class="text-[10.5px] font-sans text-gray-500 uppercase tracking-wide mb-6">Per Munger (2024): Independent YouTubers are not Creators but Creations of their audience.</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div>
+          <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Recent Feedback Events</h3>
+          <div class="space-y-4 max-h-[300px] overflow-y-auto">
+            <template x-for="ev in (feedback_data.recent_events ?? [])" :key="ev.id">
+              <div class="flex text-sm">
+                <div class="w-20 text-xs font-sans text-gray-400 pt-1" x-text="timeAgo(ev.detected_at)"></div>
+                <div class="flex-1 border-l border-gray-200 pl-3">
+                  <div class="mb-1">
+                    <span class="font-serif font-bold text-black" x-text="ev.channel_name"></span>
+                    responded to <span class="font-bold bg-gray-100 px-1" x-text="'\'' + ev.keyword + '\''"></span> spike
+                  </div>
+                  <div class="text-xs font-sans text-econred mb-1">
+                    ▲ <span x-text="ev.trigger_engagement_percentile?.toFixed(0)"></span>th percentile →
+                    <span x-text="ev.response_video_count"></span> follow-up videos in 72h
+                  </div>
+                  <div class="text-[10px] font-sans text-gray-500 uppercase">
+                    [<span x-text="ev.affiliation_type"></span> · Tier <span x-text="ev.tier"></span>]
+                  </div>
+                </div>
+              </div>
+            </template>
+            <div x-show="!feedback_data.recent_events?.length" class="text-sm italic text-gray-400 font-serif py-4">
+              Feedback events appear after 3-4 days of data collection.
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Most Audience-Responsive (30d)</h3>
+          <div class="h-[200px] w-full mb-4">
+            <canvas id="feedbackChart"></canvas>
+          </div>
+          <div class="bg-gray-50 p-3 border border-gray-200 text-sm font-serif italic text-black">
+            💡 <span x-text="feedback_data.insight ?? 'Insight available after 3+ days of data.'"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- D: Ecosystem Rank Stability -->
+    <section>
+      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4 flex justify-between items-end">
+        Ecosystem Rank Stability <span class="text-xs font-sans text-gray-500 font-normal uppercase" x-text="stability_status"></span>
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div>
+          <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3 flex justify-between">
+            <span>Weekly Rank Movement</span>
+            <span class="font-normal" x-text="'Week of ' + (stability_data.current_week ?? '—')"></span>
+          </h3>
+          <table class="w-full text-sm font-sans mb-3">
+            <thead class="text-xs text-gray-500 border-b border-gray-200">
+              <tr><th class="text-left font-normal py-1">Channel</th><th class="text-right font-normal py-1">Rank</th><th class="text-right font-normal py-1">Δ</th><th class="text-right font-normal py-1">Type</th></tr>
+            </thead>
+            <tbody>
+              <template x-for="r in (stability_data.movers?.biggest_risers ?? []).slice(0,3)">
+                <tr class="border-b border-gray-100">
+                  <td class="py-1.5 font-serif font-bold text-black" x-text="r.channel_name"></td>
+                  <td class="py-1.5 text-right font-bold">#<span x-text="r.current_rank"></span></td>
+                  <td class="py-1.5 text-right font-bold text-green-600">▲ <span x-text="r.rank_change"></span></td>
+                  <td class="py-1.5 text-right text-xs capitalize text-gray-500" x-text="r.affiliation_type"></td>
+                </tr>
+              </template>
+              <template x-for="f in (stability_data.movers?.biggest_fallers ?? []).slice(0,3)">
+                <tr class="border-b border-gray-100">
+                  <td class="py-1.5 font-serif font-bold text-black" x-text="f.channel_name"></td>
+                  <td class="py-1.5 text-right font-bold">#<span x-text="f.current_rank"></span></td>
+                  <td class="py-1.5 text-right font-bold text-econred">▼ <span x-text="Math.abs(f.rank_change)"></span></td>
+                  <td class="py-1.5 text-right text-xs capitalize text-gray-500" x-text="f.affiliation_type"></td>
+                </tr>
+              </template>
+              <tr x-show="!stability_data.movers?.biggest_risers?.length">
+                <td colspan="4" class="py-4 text-center text-sm italic text-gray-400 font-serif">Stability data computed weekly — available after first Sunday midnight run.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="text-xs font-sans font-bold flex items-center gap-2 p-2 bg-gray-50 border border-gray-200">
+            <span>Ecosystem:</span>
+            <span class="px-2 py-0.5 text-white capitalize"
+                  :class="{
+                    'bg-blue-600': stability_data.ecosystem_stability?.interpretation === 'locked',
+                    'bg-green-600': stability_data.ecosystem_stability?.interpretation === 'stable',
+                    'bg-yellow-500': stability_data.ecosystem_stability?.interpretation === 'unsettled',
+                    'bg-red-600': stability_data.ecosystem_stability?.interpretation === 'volatile'
+                  }"
+                  x-text="stability_data.ecosystem_stability?.interpretation ?? '—'">
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Stability History</h3>
+          <div class="h-[150px] w-full">
+            <canvas id="stabilityChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ═══════════════════════ RIGHT SIDEBAR ═══════════════════════ -->
+  <div class="md:col-span-4 space-y-10">
+
+    <!-- Methodology Quick Reference -->
+    <div class="border border-gray-200 p-5 bg-gray-50">
+      <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-gray-600 mb-3 pb-1 border-b border-gray-200">Reading This Page</h3>
+      <div class="space-y-3 text-xs font-sans text-gray-700 leading-relaxed">
+        <div><span class="font-bold text-black">Heat Index</span> — Comments weighted 3× likes. A score of 2× means twice the audience engagement vs. baseline.</div>
+        <div><span class="font-bold text-black">Affiliation Divergence</span> — "Grassroots Emerging" = independents running a story before legacy media picks it up.</div>
+        <div><span class="font-bold text-black">Feedback Events</span> — A creator uploads a follow-up video on the same topic within 72h of a top-decile engagement spike.</div>
+        <div><span class="font-bold text-black">Rank Stability</span> — Computed weekly. "Volatile" means >3 channels moved 10+ positions in 7 days.</div>
+      </div>
+      <a href="/methodology" class="mt-4 inline-block text-[11px] font-bold uppercase tracking-wider border border-black px-3 py-1.5 hover:bg-black hover:text-white transition font-sans">
+        Full Methodology →
+      </a>
+    </div>
+
+    <!-- Divergence Insight Panel -->
+    <div x-show="divergence_data.munger_insight">
+      <h3 class="font-sans text-xs font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3">Munger Insight</h3>
+      <div class="bg-white border-l-4 border-econred p-4 font-serif text-sm italic text-black leading-relaxed"
+           x-text="divergence_data.munger_insight"></div>
+      <p class="text-[10px] text-gray-400 font-sans mt-2 uppercase tracking-wide" x-text="'Updated: ' + (divergence_data.updated_at ? new Date(divergence_data.updated_at).toLocaleTimeString() : '—')"></p>
+    </div>
+
+  </div>
+
+</main>
+{% endblock %}
+
+{% block bottom_scripts %}
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('analyticsDashboard', () => ({
+    heat_data: {}, heat_status: 'syncing…',
+    divergence_data: {},
+    feedback_data: {}, feedback_status: 'syncing…',
+    stability_data: {}, stability_status: 'syncing…',
+    fbInstance: null, stabInstance: null, d3Sim: null,
+
+    async init() {
+      Chart.defaults.font.family = '"Inter", sans-serif';
+      Chart.defaults.color = '#111';
+      await Promise.all([
+        this.fetchHeat(),
+        this.fetchDivergence(),
+        this.fetchFeedback(),
+        this.fetchStability(),
+        this.fetchConvergence()
+      ]);
+      setInterval(() => this.fetchHeat(),        6 * 60 * 1000);
+      setInterval(() => this.fetchDivergence(),  9 * 60 * 1000);
+      setInterval(() => this.fetchFeedback(),   15 * 60 * 1000);
+      setInterval(() => this.fetchStability(),  60 * 60 * 1000);
+      setInterval(() => this.fetchConvergence(),  7 * 60 * 1000);
+    },
+
+    async fetchHeat()       { try { const r = await fetch('/api/engagement/heat'); this.heat_data = await r.json(); this.heat_status = 'live'; } catch(e) { this.heat_status = 'error'; } },
+    async fetchDivergence() { try { const r = await fetch('/api/divergence'); this.divergence_data = await r.json(); } catch(e) {} },
+    async fetchFeedback()   { try { const r = await fetch('/api/feedback'); this.feedback_data = await r.json(); this.feedback_status = 'live'; this.renderFeedbackChart(); } catch(e) { this.feedback_status = 'error'; } },
+    async fetchStability()  { try { const r = await fetch('/api/stability'); this.stability_data = await r.json(); this.stability_status = 'live'; this.renderStabilityChart(); } catch(e) { this.stability_status = 'error'; } },
+    async fetchConvergence(){ try { const r = await fetch('/api/topics/convergence'); const data = await r.json(); this.renderD3Network(data); } catch(e) {} },
+
+    timeAgo(iso) {
+      if (!iso) return '—';
+      const s = (new Date() - new Date(iso.replace(' ','T')+'Z')) / 1000;
+      if (s < 3600) return Math.floor(s/60) + 'm ago';
+      if (s < 86400) return Math.floor(s/3600) + 'h ago';
+      return Math.floor(s/86400) + 'd ago';
+    },
+
+    renderFeedbackChart() {
+      const ctx = document.getElementById('feedbackChart');
+      if (!ctx || !this.feedback_data.most_feedback_responsive_channels) return;
+      const d = this.feedback_data.most_feedback_responsive_channels.slice(0,5);
+      const labels = d.map(x => x.channel_name);
+      const counts = d.map(x => x.feedback_events_30d);
+      const colors = d.map(x => x.affiliation_type === 'independent' ? '#ea580c' : '#2563eb');
+      if (this.fbInstance) {
+        this.fbInstance.data.labels = labels;
+        this.fbInstance.data.datasets[0].data = counts;
+        this.fbInstance.data.datasets[0].backgroundColor = colors;
+        this.fbInstance.update();
+      } else {
+        this.fbInstance = new Chart(ctx, {
+          type: 'bar',
+          data: { labels, datasets: [{ data: counts, backgroundColor: colors }] },
+          options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false } } }
+        });
+      }
+    },
+
+    renderStabilityChart() {
+      const ctx = document.getElementById('stabilityChart');
+      if (!ctx || !this.stability_data.history) return;
+      const hist = [...this.stability_data.history].reverse();
+      const labels = hist.map(h => h.week_of);
+      const data = hist.map(h => h.median_rank_change);
+      if (this.stabInstance) {
+        this.stabInstance.data.labels = labels;
+        this.stabInstance.data.datasets[0].data = data;
+        this.stabInstance.update();
+      } else {
+        this.stabInstance = new Chart(ctx, {
+          type: 'line',
+          data: { labels, datasets: [{ data, borderColor: '#111', borderWidth: 2, tension: 0.1, fill: true, backgroundColor: 'rgba(0,0,0,0.05)' }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0 } } }
+        });
+      }
+    },
+
+    renderD3Network(d) {
+      const container = document.getElementById('d3-container');
+      if (!container) return;
+      container.innerHTML = '';
+      if (!d.nodes || d.nodes.length === 0) {
+        container.innerHTML = '<div class="flex items-center justify-center h-full text-sm italic text-gray-400 font-serif">Network data available after first keyword extraction cycle.</div>';
+        return;
+      }
+      const w = container.clientWidth, h = container.clientHeight;
+      const svg = d3.select(container).append('svg').attr('width', w).attr('height', h);
+      const sim = d3.forceSimulation(d.nodes)
+        .force('link', d3.forceLink(d.edges).id(n => n.id).distance(120))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(w/2, h/2));
+      const maxStr = Math.max(...d.edges.map(e => e.strength), 1);
+      const link = svg.append('g').selectAll('line').data(d.edges).join('line')
+        .attr('stroke', e => d3.interpolateReds(e.strength / maxStr))
+        .attr('stroke-width', e => Math.min(e.strength * 1.5, 6));
+      const node = svg.append('g').selectAll('circle').data(d.nodes).join('circle')
+        .attr('r', n => Math.min((n.video_count_24h || 1) * 1.5 + 4, 30))
+        .attr('fill', n => n.tier === 1 ? '#111' : n.tier === 2 ? '#555' : '#e4e4e4')
+        .attr('stroke', n => n.tier === 3 ? '#e3120b' : '#fff').attr('stroke-width', 2)
+        .call(d3.drag()
+          .on('start', e => { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
+          .on('drag', e => { e.subject.fx = e.x; e.subject.fy = e.y; })
+          .on('end', e => { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
+      const labels = svg.append('g').selectAll('text').data(d.nodes).join('text')
+        .attr('class', 'node-label').attr('dy', 4).attr('dx', n => Math.min((n.video_count_24h||1)*1.5+4, 30)+4)
+        .text(n => (n.video_count_24h||1) > 1 ? n.name : '');
+      sim.on('tick', () => {
+        link.attr('x1', e => e.source.x).attr('y1', e => e.source.y).attr('x2', e => e.target.x).attr('y2', e => e.target.y);
+        node.attr('cx', n => n.x = Math.max(15, Math.min(w-15, n.x))).attr('cy', n => n.y = Math.max(15, Math.min(h-15, n.y)));
+        labels.attr('x', n => n.x).attr('y', n => n.y);
+      });
+    }
+  }));
+});
+</script>
+{% endblock %}
