@@ -10,7 +10,7 @@ import functools
 
 app = Flask(__name__)
 app.secret_key = os.getenv('ADMIN_SECRET_KEY', 'change-me-in-production')
-DB_PATH = "data/yt_temperature.db"
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "yt_temperature.db")
 
 ADMIN_USER = os.getenv('ADMIN_USER', 'admin')
 ADMIN_PASS = os.getenv('ADMIN_PASS', 'polisignal')

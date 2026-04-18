@@ -6,10 +6,13 @@ Manages SQLite connections and creates tables on first run.
 import sqlite3
 import csv
 import logging
-
-DB_PATH = "data/yt_temperature.db"
-
 import os
+
+# Absolute paths derived from this file's location — safe inside Docker
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH  = os.path.join(BASE_DIR, "data", "yt_temperature.db")
+CSV_PATH = os.path.join(BASE_DIR, "channels.csv")
+
 
 def get_connection():
     """Returns a SQLite connection with row factory enabled."""
@@ -275,7 +278,7 @@ def load_channels():
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        with open("channels.csv", "r", encoding="utf-8") as f:
+        with open(CSV_PATH, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             count = 0
             for row in reader:
