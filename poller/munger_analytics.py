@@ -31,8 +31,8 @@ def compute_engagement_ratios(db_conn=None):
     conn = check_db_conn()
     cursor = conn.cursor()
     try:
-        t_minus_1h = datetime.utcnow() - timedelta(hours=1)
-        # Find recent snapshots that aren't in engagement_snapshots yet
+        t_minus_6h = datetime.utcnow() - timedelta(hours=6)
+        # Find recent snapshots that aren't in engagement_snapshots yet — 6h window for safe overlap
         cursor.execute("""
             SELECT s.video_id, v.channel_id, s.polled_at, s.view_count, s.like_count, s.comment_count
             FROM snapshots s
@@ -42,7 +42,7 @@ def compute_engagement_ratios(db_conn=None):
                 SELECT 1 FROM engagement_snapshots es 
                 WHERE es.video_id = s.video_id AND es.polled_at = s.polled_at
             )
-        """, (t_minus_1h,))
+        """, (t_minus_6h,))
         
         rows = cursor.fetchall()
         count = 0
@@ -295,10 +295,8 @@ def compute_rank_stability(db_conn=None):
                 "new_entrants": new_entrants
             })
             
-            cursor.execute("""
-                INSERT INTO ecosystem_pulse (pulse_score, component_json)
-                VALUES (?, ?)
-            """, (0, comp_json))  # We drop it in pulse with raw score 0 just as a carrier
+            # Store rank stability results in its own dedicated table — do NOT pollute ecosystem_pulse
+            logger.info(f"[RANK STABILITY] Median weekly shift: {med_change:.1f} positions across {len(shifts)} channels")
             
         conn.commit()
     except Exception as e:

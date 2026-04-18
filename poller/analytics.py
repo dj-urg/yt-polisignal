@@ -91,7 +91,11 @@ def detect_first_movers():
             ORDER BY k.keyword, v.published_at ASC
         """, (t_minus_24h,))
         
+        seen_keywords = set()
         for row in cursor.fetchall():
+            if row['keyword'] in seen_keywords:
+                continue
+            seen_keywords.add(row['keyword'])
             cursor.execute("""
                 INSERT OR IGNORE INTO first_movers (keyword, channel_id, video_id, first_seen_at)
                 VALUES (?, ?, ?, ?)
@@ -219,13 +223,13 @@ def compute_ecosystem_pulse():
         
         if days_since_seed < 3:
             calib_mode = "today"
-            cursor.execute("SELECT AVG(component_json->>'raw_pulse') as a FROM ecosystem_pulse WHERE date(recorded_at) = date('now')")
+            cursor.execute("SELECT AVG(json_extract(component_json, '$.raw_pulse')) as a FROM ecosystem_pulse WHERE date(recorded_at) = date('now') AND json_extract(component_json, '$.raw_pulse') IS NOT NULL")
         elif days_since_seed < 14:
             calib_mode = "week"
-            cursor.execute("SELECT AVG(component_json->>'raw_pulse') as a FROM ecosystem_pulse WHERE recorded_at >= datetime('now', '-7 days')")
+            cursor.execute("SELECT AVG(json_extract(component_json, '$.raw_pulse')) as a FROM ecosystem_pulse WHERE recorded_at >= datetime('now', '-7 days') AND json_extract(component_json, '$.raw_pulse') IS NOT NULL")
         else:
             calib_mode = "month"
-            cursor.execute("SELECT AVG(component_json->>'raw_pulse') as a FROM ecosystem_pulse WHERE recorded_at >= datetime('now', '-30 days')")
+            cursor.execute("SELECT AVG(json_extract(component_json, '$.raw_pulse')) as a FROM ecosystem_pulse WHERE recorded_at >= datetime('now', '-30 days') AND json_extract(component_json, '$.raw_pulse') IS NOT NULL")
             
         val = cursor.fetchone()['a']
         baseline = float(val) if val else pulse if pulse > 0 else 1.0
@@ -292,10 +296,12 @@ def classify_topic_lifespans():
             lifespan_h = (l_dt - f_dt).total_seconds() / 3600.0
             peak_ch = row['total_ch']
 
-            if lifespan_h <= 24 and peak_ch >= 5:
+            if lifespan_h <= 12 and peak_ch >= 5:
                 classification = "flash"
             elif lifespan_h >= 72:
                 classification = "slow_burn"
+            elif lifespan_h >= 24:
+                classification = "recurring"
             else:
                 classification = "flash"
                 

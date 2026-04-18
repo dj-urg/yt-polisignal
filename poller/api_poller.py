@@ -72,9 +72,9 @@ def enrich_new_videos():
         for item in data.get("items", []):
             vid = item.get("id")
             stats = item.get("statistics", {})
-            views = stats.get("viewCount", 0)
-            likes = stats.get("likeCount", 0)
-            comments = stats.get("commentCount", 0)
+            views = int(stats.get("viewCount", 0) or 0)
+            likes = int(stats.get("likeCount", 0) or 0)
+            comments = int(stats.get("commentCount", 0) or 0)
             
             cursor.execute("""
                 INSERT INTO snapshots (video_id, view_count, like_count, comment_count)
@@ -130,9 +130,9 @@ def refresh_hot_videos():
         for item in data.get("items", []):
             vid = item.get("id")
             stats = item.get("statistics", {})
-            views = stats.get("viewCount", 0)
-            likes = stats.get("likeCount", 0)
-            comments = stats.get("commentCount", 0)
+            views = int(stats.get("viewCount", 0) or 0)
+            likes = int(stats.get("likeCount", 0) or 0)
+            comments = int(stats.get("commentCount", 0) or 0)
             
             cursor.execute("""
                 INSERT INTO snapshots (video_id, view_count, like_count, comment_count)
@@ -175,8 +175,8 @@ def refresh_channel_stats():
         for item in data.get("items", []):
             cid = item.get("id")
             stats = item.get("statistics", {})
-            subs = stats.get("subscriberCount", 0)
-            videocount = stats.get("videoCount", 0)
+            subs = int(stats.get("subscriberCount", 0) or 0)
+            videocount = int(stats.get("videoCount", 0) or 0)
             
             cursor.execute("""
                 UPDATE channels SET subscriber_count = ?, last_updated = CURRENT_TIMESTAMP
