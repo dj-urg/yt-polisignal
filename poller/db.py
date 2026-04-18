@@ -268,6 +268,16 @@ def init_db():
         )
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS daily_briefings (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            briefing_text   TEXT NOT NULL,
+            generated_by    TEXT DEFAULT 'ollama',
+            signals_json    TEXT,
+            generated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     conn.commit()
     conn.close()
     

@@ -436,57 +436,79 @@ def api_linguistics():
 def api_daily_briefing():
     conn = get_db()
     cursor = conn.cursor()
-    
+
     try:
-        cursor.execute("SELECT pulse_score FROM ecosystem_pulse ORDER BY recorded_at DESC LIMIT 1")
+        # Prefer the most recent AI-generated briefing written today
+        cursor.execute("""
+            SELECT briefing_text, generated_at, generated_by
+            FROM daily_briefings
+            ORDER BY generated_at DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+
+        if row:
+            return jsonify({
+                "briefing": row['briefing_text'],
+                "generated_at": row['generated_at'],
+                "source": row['generated_by']
+            })
+
+        # ── Fallback: template-string briefing when AI hasn't run yet ──────────
+        cursor.execute("SELECT pulse_score FROM ecosystem_pulse WHERE json_extract(component_json,'$.raw_pulse') IS NOT NULL ORDER BY recorded_at DESC LIMIT 1")
         r1 = cursor.fetchone()
         pulse = r1['pulse_score'] if r1 else 100
-        
+
         cursor.execute("SELECT keyword, channel_count FROM topic_snapshots ORDER BY id DESC LIMIT 1")
         r2 = cursor.fetchone()
-        top_kw = r2['keyword'] if r2 else "unknown"
+        top_kw = r2['keyword'] if r2 else None
         top_kw_ch = r2['channel_count'] if r2 else 0
-        
-        cursor.execute("SELECT c.channel_name, fm.first_seen_at FROM first_movers fm JOIN channels c ON fm.channel_id = c.channel_id WHERE fm.keyword = ?", (top_kw,))
-        r3 = cursor.fetchone()
-        first_mover_channel = r3['channel_name'] if r3 else "Unknown"
+
+        first_mover_channel = None
         hours_ago = 0
-        if r3:
-            import datetime
-            dt = datetime.datetime.fromisoformat(r3['first_seen_at'].replace('Z',''))
-            hours_ago = (datetime.datetime.utcnow() - dt).total_seconds() / 3600
-        
-        cursor.execute("SELECT c.channel_name FROM rhythm_alerts ra JOIN channels c ON ra.channel_id = c.channel_id WHERE c.tier = 3 AND ra.alerted_at > datetime('now','-24 hours')")
+        if top_kw:
+            cursor.execute("SELECT c.channel_name, fm.first_seen_at FROM first_movers fm JOIN channels c ON fm.channel_id = c.channel_id WHERE fm.keyword = ?", (top_kw,))
+            r3 = cursor.fetchone()
+            if r3:
+                first_mover_channel = r3['channel_name']
+                dt = datetime.datetime.fromisoformat(r3['first_seen_at'].replace('Z', ''))
+                hours_ago = (datetime.datetime.utcnow() - dt).total_seconds() / 3600
+
+        cursor.execute("SELECT c.channel_name FROM rhythm_alerts ra JOIN channels c ON ra.channel_id = c.channel_id WHERE ra.alerted_at > datetime('now','-24 hours')")
         breakouts = [r[0] for r in cursor.fetchall()]
-        
+
         cursor.execute("SELECT urgency_ratio FROM title_linguistics ORDER BY recorded_at DESC LIMIT 7")
         lr = cursor.fetchall()
         urg_cur = lr[0]['urgency_ratio'] if lr else 0
-        urg_avg = sum(x['urgency_ratio'] for x in lr)/max(len(lr),1) if lr else 0
+        urg_avg = sum(x['urgency_ratio'] for x in lr) / max(len(lr), 1) if lr else 0
         urg_delta = urg_cur - urg_avg
-        
-        cursor.execute("SELECT keyword, lag_hours FROM diffusion_events WHERE from_tier=3 AND to_tier=1 ORDER BY crossed_at DESC LIMIT 1")
-        diff = cursor.fetchone()
-        cursor.execute("SELECT AVG(lag_hours) as a FROM diffusion_events WHERE from_tier=3 AND to_tier=1")
-        avg_lag = cursor.fetchone()['a'] or 0
-        
-        briefing = f"Today the conservative media ecosystem is running at {pulse:.0f}% of its 30-day baseline — {'above' if pulse > 100 else 'below'} average activity.\n\n"
-        briefing += f"The dominant converging topic is '{top_kw}', first covered by {first_mover_channel} {hours_ago:.0f} hours ago and now appearing across {top_kw_ch} channels.\n\n"
+
+        briefing = f"The conservative media ecosystem is running at {pulse:.0f}% of its 30-day baseline — {'above' if pulse > 100 else 'below'} average activity.\n\n"
+        if top_kw:
+            briefing += f"The dominant converging topic is '{top_kw}'"
+            if first_mover_channel:
+                briefing += f", first covered by {first_mover_channel} {hours_ago:.0f} hours ago"
+            briefing += f" and now appearing across {top_kw_ch} channels.\n\n"
         if breakouts:
-            briefing += f"⚡ {len(breakouts)} Tier 3 channel(s) are in breakout mode: {', '.join(breakouts[:3])}.\n\n"
+            briefing += f"⚡ {len(breakouts)} channel(s) in breakout mode: {', '.join(breakouts[:3])}.\n\n"
         briefing += f"Urgency language in titles is {'up' if urg_delta > 0 else 'down'} {abs(urg_delta * 100):.0f}% vs. the 7-day average.\n\n"
-        if diff and diff['lag_hours'] < avg_lag:
-            briefing += f"🚨 Breaking pattern: '{diff['keyword']}' crossed from Tier 3 to Tier 1 in just {round(diff['lag_hours'],1)} hours — faster than the {round(avg_lag,1)}h average."
+        briefing += "AI briefing generates nightly at 23:00 UTC via local Ollama."
+
+        return jsonify({
+            "briefing": briefing.strip(),
+            "generated_at": datetime.datetime.utcnow().isoformat(),
+            "source": "template"
+        })
+
     except Exception as e:
-        briefing = "Intelligence briefing temporarily unavailable while polling syncs."
+        return jsonify({
+            "briefing": "Intelligence briefing temporarily unavailable — polling syncing.",
+            "generated_at": datetime.datetime.utcnow().isoformat(),
+            "source": "error"
+        })
+    finally:
+        conn.close()
 
-    conn.close()
-
-    import datetime
-    return jsonify({
-        "briefing": briefing.strip(),
-        "generated_at": datetime.datetime.utcnow().isoformat()
-    })
 
 # --- MUNGER API ROUTES ---
 

@@ -11,6 +11,7 @@ import api_poller
 
 import analytics
 import munger_analytics
+import briefing_generator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
@@ -66,6 +67,9 @@ if __name__ == '__main__':
     scheduler.add_job(munger_analytics.compute_affiliation_divergence, 'interval', hours=3, max_instances=1)
     scheduler.add_job(munger_analytics.detect_feedback_loops, 'interval', hours=6, max_instances=1)
     scheduler.add_job(munger_analytics.compute_rank_stability, 'cron', day_of_week='sun', hour=0, minute=0, max_instances=1)
+
+    # Nightly AI briefing — runs at 23:00 UTC using local Ollama
+    scheduler.add_job(briefing_generator.generate_daily_briefing, 'cron', hour=23, minute=0, max_instances=1)
     
     logging.info("Scheduler started successfully. System is now polling.")
     scheduler.start()
