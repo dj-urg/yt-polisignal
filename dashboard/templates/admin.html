@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+
+{% block body_attrs %}x-data="adminPanel()" x-init="init()"{% endblock %}
+
+{% block head_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<main class="space-y-10 pb-16">
+
+  <!-- Page Header -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b-[2px] border-black pb-4">
+    <div>
+      <h1 class="text-3xl font-serif font-black text-black tracking-tight" style="letter-spacing: -0.02em;">System Administration</h1>
+      <p class="text-sm font-sans text-gray-600 mt-1 uppercase tracking-widest font-semibold">Pipeline Intelligence & Channel Control</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="w-2.5 h-2.5 rounded-full" :class="health.last_poll ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></span>
+      <span class="text-xs font-bold font-sans uppercase tracking-widest" x-text="health.last_poll ? 'Poller Active' : 'No Activity'"></span>
+      <button @click="refreshHealth()" class="ml-4 text-xs font-bold border border-black px-3 py-1.5 hover:bg-black hover:text-white transition font-sans">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- ZONE A: Pipeline Pulse -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+
+  <section>
+    <h2 class="text-xs font-bold uppercase tracking-widest text-gray-500 font-sans mb-4 border-b border-gray-200 pb-2">Data Pipeline Pulse</h2>
+
+    <!-- Stat Cards Grid -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-300 border border-gray-300">
+
+      <div class="bg-white p-5 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Channels Tracked</span>
+        <span class="text-4xl font-serif font-black text-black" x-text="health.total_channels ?? '—'"></span>
+        <div class="mt-2 flex gap-2 flex-wrap">
+          <template x-for="(count, tier) in (health.channels_by_tier ?? {})" :key="tier">
+            <span class="text-[10px] font-bold font-sans border border-gray-300 px-1.5 py-0.5"
+                  x-text="`T${tier}: ${count}`"></span>
+          </template>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Total Videos Indexed</span>
+        <span class="text-4xl font-serif font-black text-black" x-text="(health.total_videos ?? 0).toLocaleString()"></span>
+        <span class="text-xs text-gray-500 font-sans mt-2" x-text="`+${health.videos_24h ?? 0} in last 24h`"></span>
+      </div>
+
+      <div class="bg-white p-5 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Engagement Snapshots</span>
+        <span class="text-4xl font-serif font-black text-black" x-text="(health.total_snapshots ?? 0).toLocaleString()"></span>
+        <span class="text-xs text-gray-500 font-sans mt-2" x-text="`+${health.snapshots_24h ?? 0} in last 24h`"></span>
+      </div>
+
+      <div class="bg-white p-5 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Feedback Events</span>
+        <span class="text-4xl font-serif font-black text-black" x-text="health.total_feedback_events ?? '—'"></span>
+        <span class="text-xs text-gray-500 font-sans mt-2" x-text="`${health.divergence_records_24h ?? 0} divergence records today`"></span>
+      </div>
+
+      <div class="bg-white p-5 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Keywords Extracted (24h)</span>
+        <span class="text-4xl font-serif font-black text-black" x-text="(health.keywords_24h ?? 0).toLocaleString()"></span>
+        <span class="text-xs text-green-700 font-sans mt-2 font-bold">NLTK NLP Pipeline</span>
+      </div>
+
+      <div class="bg-white p-5 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Affiliation Split</span>
+        <div class="flex flex-col gap-1 mt-1">
+          <template x-for="(count, type) in (health.channels_by_affiliation ?? {})" :key="type">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-semibold font-sans capitalize" x-text="type"></span>
+              <span class="text-sm font-black font-serif" x-text="count"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Last API Snapshot</span>
+        <span class="text-base font-bold font-mono text-black mt-1" x-text="fmtDate(health.last_poll) || 'Never'"></span>
+        <span class="text-[10px] text-gray-400 font-sans mt-1">Most recent YouTube API write</span>
+      </div>
+
+      <div class="bg-white p-5 flex flex-col gap-1">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Last RSS Ingestion</span>
+        <span class="text-base font-bold font-mono text-black mt-1" x-text="fmtDate(health.last_rss) || 'Never'"></span>
+        <span class="text-[10px] text-gray-400 font-sans mt-1">Most recent video discovered via RSS</span>
+      </div>
+
+    </div>
+
+    <!-- Sparkline: hourly snapshot volume -->
+    <div class="mt-4 bg-white border border-gray-300 p-5">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans mb-3">Snapshot Volume — Last 24 Hours</p>
+      <canvas id="sparklineChart" height="80"></canvas>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- ZONE B: Add New Channel -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+
+  <section>
+    <h2 class="text-xs font-bold uppercase tracking-widest text-gray-500 font-sans mb-4 border-b border-gray-200 pb-2">Register New Channel</h2>
+
+    <div class="bg-white border border-gray-300 p-6">
+      <form @submit.prevent="submitChannel()" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+
+        <div class="flex flex-col gap-1">
+          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">YouTube Channel ID *</label>
+          <input type="text" x-model="form.channel_id" required placeholder="e.g. UCXIJgqnII2ZOINSWNOGFThA"
+                 class="border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:border-black transition">
+          <p class="text-[10px] text-gray-400 font-sans">Find via: youtube.com/channel/<strong>ID</strong> or channel page → About</p>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Display Name *</label>
+          <input type="text" x-model="form.channel_name" required placeholder="e.g. Tucker Carlson"
+                 class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition">
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Tier</label>
+          <select x-model="form.tier" class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition bg-white">
+            <option value="1">Tier 1 — Major Network</option>
+            <option value="2">Tier 2 — Prominent Commentator</option>
+            <option value="3" selected>Tier 3 — Independent Creator</option>
+          </select>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Category</label>
+          <select x-model="form.category" class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition bg-white">
+            <option value="commentator" selected>Commentator</option>
+            <option value="network">Network</option>
+            <option value="news">News</option>
+            <option value="culture">Culture</option>
+            <option value="economics">Economics</option>
+            <option value="faith">Faith</option>
+            <option value="satire">Satire</option>
+          </select>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Affiliation Type</label>
+          <select x-model="form.affiliation_type" class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition bg-white">
+            <option value="independent" selected>Independent / Grassroots</option>
+            <option value="affiliated">Affiliated / Institutional</option>
+          </select>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Affiliated Organisation (optional)</label>
+          <input type="text" x-model="form.affiliation_org" placeholder="e.g. Fox News Media"
+                 class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition">
+        </div>
+
+        <div class="md:col-span-2 flex items-center gap-4 pt-2">
+          <button type="submit"
+                  class="bg-black text-white font-bold text-sm px-6 py-2.5 font-sans hover:bg-econred transition"
+                  :disabled="submitting"
+                  x-text="submitting ? 'Registering…' : '+ Add to Monitoring List'">
+          </button>
+          <span class="text-sm font-sans font-semibold transition"
+                :class="formMsg.ok ? 'text-green-700' : 'text-econred'"
+                x-show="formMsg.text" x-text="formMsg.text"></span>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- ZONE C: Active Channel Directory with Remove -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+
+  <section>
+    <div class="flex justify-between items-center mb-4 border-b border-gray-200 pb-2">
+      <h2 class="text-xs font-bold uppercase tracking-widest text-gray-500 font-sans">Active Monitoring Directory</h2>
+      <div class="relative w-56">
+        <input type="text" x-model="search" placeholder="Filter channels…"
+               class="w-full border border-gray-300 pl-8 pr-3 py-1.5 text-xs font-sans focus:outline-none focus:border-black transition">
+        <span class="absolute left-2.5 top-2 text-gray-400 text-xs">🔍</span>
+      </div>
+    </div>
+
+    <div class="bg-white border border-gray-300 overflow-hidden">
+      <table class="w-full text-left border-collapse text-sm">
+        <thead>
+          <tr class="bg-gray-100 border-b-[2px] border-black text-[10px] font-bold uppercase tracking-widest text-gray-600 font-sans">
+            <th class="px-4 py-3">Channel</th>
+            <th class="px-4 py-3">Tier</th>
+            <th class="px-4 py-3">Category</th>
+            <th class="px-4 py-3">Affiliation</th>
+            <th class="px-4 py-3">Subscribers</th>
+            <th class="px-4 py-3">Last Polled</th>
+            <th class="px-4 py-3 text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          <template x-for="ch in filteredChannels" :key="ch.channel_id">
+            <tr class="hover:bg-gray-50 transition group">
+              <td class="px-4 py-3 font-bold text-black border-l-4 border-transparent group-hover:border-econred transition">
+                <div x-text="ch.channel_name"></div>
+                <div class="text-[10px] font-mono text-gray-400 mt-0.5" x-text="ch.channel_id"></div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 border"
+                      :class="{
+                        'bg-black text-white border-black': ch.tier == 1,
+                        'bg-gray-200 text-black border-gray-400': ch.tier == 2,
+                        'bg-white text-econred border-econred': ch.tier == 3
+                      }"
+                      x-text="`T${ch.tier}`"></span>
+              </td>
+              <td class="px-4 py-3 capitalize text-gray-700 font-sans" x-text="ch.category"></td>
+              <td class="px-4 py-3">
+                <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5"
+                      :class="ch.affiliation_type === 'affiliated' ? 'bg-econblue text-white' : 'bg-gray-100 text-gray-700'"
+                      x-text="ch.affiliation_type === 'affiliated' ? 'Institutional' : 'Independent'"></span>
+              </td>
+              <td class="px-4 py-3 font-mono font-bold text-black" x-text="fmtNum(ch.subscriber_count)"></td>
+              <td class="px-4 py-3 text-xs font-mono text-gray-400" x-text="fmtDate(ch.last_updated)"></td>
+              <td class="px-4 py-3 text-right">
+                <button @click="confirmRemove(ch)"
+                        class="text-[11px] font-bold uppercase tracking-widest border border-gray-300 px-3 py-1 font-sans
+                               hover:bg-econred hover:text-white hover:border-econred transition">
+                  Remove
+                </button>
+              </td>
+            </tr>
+          </template>
+          <tr x-show="filteredChannels.length === 0 && !loading">
+            <td colspan="7" class="py-12 text-center text-gray-400 italic font-serif text-sm">No channels match the filter.</td>
+          </tr>
+          <tr x-show="loading">
+            <td colspan="7" class="py-12 text-center text-gray-400 font-sans text-xs">Loading directory…</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Confirm Delete Modal -->
+  <div x-show="toDelete" x-cloak
+       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+       @click.self="toDelete = null">
+    <div class="bg-white border border-gray-300 shadow-2xl p-8 max-w-md w-full mx-4">
+      <h3 class="font-serif text-xl font-bold text-black mb-2">Confirm Removal</h3>
+      <p class="text-sm text-gray-600 font-sans mb-1">
+        You are about to remove <strong x-text="toDelete?.channel_name"></strong> from active monitoring.
+      </p>
+      <p class="text-xs text-gray-400 font-sans mb-6">Historical data (videos, snapshots) will be preserved for baseline analysis.</p>
+      <div class="flex gap-3">
+        <button @click="executeRemove()" class="bg-econred text-white font-bold text-sm px-5 py-2.5 font-sans hover:opacity-90 transition">
+          Confirm Remove
+        </button>
+        <button @click="toDelete = null" class="border border-gray-300 text-black font-bold text-sm px-5 py-2.5 font-sans hover:bg-gray-100 transition">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+</main>
+{% endblock %}
+
+{% block bottom_scripts %}
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('adminPanel', () => ({
+    health: {},
+    channels: [],
+    search: '',
+    loading: true,
+    submitting: false,
+    toDelete: null,
+    formMsg: { text: '', ok: true },
+    form: {
+      channel_id: '',
+      channel_name: '',
+      tier: '3',
+      category: 'commentator',
+      affiliation_type: 'independent',
+      affiliation_org: ''
+    },
+    _sparkChart: null,
+
+    async init() {
+      await this.refreshHealth();
+      await this.loadChannels();
+      // Auto-refresh every 60s
+      setInterval(() => this.refreshHealth(), 60000);
+    },
+
+    async refreshHealth() {
+      try {
+        const res = await fetch('/api/system_health');
+        this.health = await res.json();
+        this.$nextTick(() => this.renderSparkline());
+      } catch (e) {
+        console.error('Health fetch failed', e);
+      }
+    },
+
+    async loadChannels() {
+      this.loading = true;
+      try {
+        const res = await fetch('/api/admin/channels');
+        this.channels = await res.json();
+      } catch (e) {
+        console.error('Channel fetch failed', e);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    get filteredChannels() {
+      if (!this.search) return this.channels;
+      const q = this.search.toLowerCase();
+      return this.channels.filter(c =>
+        c.channel_name.toLowerCase().includes(q) ||
+        c.channel_id.toLowerCase().includes(q) ||
+        (c.category || '').toLowerCase().includes(q) ||
+        (c.affiliation_type || '').toLowerCase().includes(q)
+      );
+    },
+
+    async submitChannel() {
+      this.submitting = true;
+      this.formMsg = { text: '', ok: true };
+      try {
+        const res = await fetch('/api/admin/channels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.form)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          this.formMsg = { text: `✓ ${this.form.channel_name} added successfully.`, ok: true };
+          this.form = { channel_id: '', channel_name: '', tier: '3', category: 'commentator', affiliation_type: 'independent', affiliation_org: '' };
+          await this.loadChannels();
+        } else {
+          this.formMsg = { text: `✗ Error: ${data.error}`, ok: false };
+        }
+      } catch (e) {
+        this.formMsg = { text: '✗ Network error. Please try again.', ok: false };
+      } finally {
+        this.submitting = false;
+        setTimeout(() => this.formMsg = { text: '', ok: true }, 5000);
+      }
+    },
+
+    confirmRemove(ch) {
+      this.toDelete = ch;
+    },
+
+    async executeRemove() {
+      if (!this.toDelete) return;
+      const id = this.toDelete.channel_id;
+      const name = this.toDelete.channel_name;
+      this.toDelete = null;
+      try {
+        const res = await fetch(`/api/admin/channels/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          this.channels = this.channels.filter(c => c.channel_id !== id);
+          await this.refreshHealth();
+        } else {
+          alert(`Failed to remove ${name}`);
+        }
+      } catch (e) {
+        alert('Network error while removing channel.');
+      }
+    },
+
+    renderSparkline() {
+      const sparkData = this.health.snapshot_sparkline || [];
+      const labels = sparkData.map(r => r.hour);
+      const values = sparkData.map(r => r.n);
+      const ctx = document.getElementById('sparklineChart');
+      if (!ctx) return;
+      if (this._sparkChart) this._sparkChart.destroy();
+      this._sparkChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: '#e3120b',
+            borderRadius: 2,
+            barPercentage: 0.8
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false }, tooltip: {
+            callbacks: { label: ctx => `${ctx.raw} snapshots` }
+          }},
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 } } },
+            y: { grid: { color: '#e4e4e4' }, ticks: { font: { family: 'Inter', size: 10 } } }
+          }
+        }
+      });
+    },
+
+    fmtNum(n) {
+      if (!n) return '—';
+      n = +n;
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toLocaleString();
+    },
+
+    fmtDate(d) {
+      if (!d) return '—';
+      const safe = d.replace(' ', 'T');
+      const dt = new Date(safe + (safe.endsWith('Z') ? '' : 'Z'));
+      if (isNaN(dt)) return d;
+      const now = new Date();
+      const diff = Math.round((now - dt) / 60000);
+      if (diff < 2) return 'Just now';
+      if (diff < 60) return `${diff}m ago`;
+      if (diff < 1440) return `${Math.floor(diff/60)}h ago`;
+      return dt.toLocaleDateString();
+    }
+  }));
+});
+</script>
+{% endblock %}

@@ -2,7 +2,7 @@
 Flask Application for YT Temperature Dashboard
 """
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import sqlite3
 import datetime
 
@@ -753,5 +753,147 @@ def api_divergence():
             "balanced": bal[:10],
             "munger_insight": f"{len(grass)} topics currently emerging from independents with no affiliated coverage — potential agenda-setters"
         })
+    finally:
+        conn.close()
+
+
+# ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────
+
+@app.route('/admin')
+def admin():
+    return render_template('admin.html')
+
+
+@app.route('/api/system_health')
+def api_system_health():
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        stats = {}
+
+        c.execute("SELECT COUNT(*) as n FROM channels")
+        stats['total_channels'] = c.fetchone()['n']
+
+        c.execute("SELECT COUNT(*) as n FROM videos")
+        stats['total_videos'] = c.fetchone()['n']
+
+        c.execute("SELECT COUNT(*) as n FROM videos WHERE published_at >= datetime('now', '-24 hours')")
+        stats['videos_24h'] = c.fetchone()['n']
+
+        c.execute("SELECT COUNT(*) as n FROM snapshots")
+        stats['total_snapshots'] = c.fetchone()['n']
+
+        c.execute("SELECT COUNT(*) as n FROM snapshots WHERE polled_at >= datetime('now', '-24 hours')")
+        stats['snapshots_24h'] = c.fetchone()['n']
+
+        c.execute("SELECT COUNT(*) as n FROM keywords WHERE extracted_at >= datetime('now', '-24 hours')")
+        stats['keywords_24h'] = c.fetchone()['n']
+
+        c.execute("SELECT COUNT(*) as n FROM engagement_snapshots WHERE snapped_at >= datetime('now', '-24 hours')")
+        stats['engagement_snapshots_24h'] = c.fetchone()['n']
+
+        c.execute("SELECT COUNT(*) as n FROM feedback_events")
+        stats['total_feedback_events'] = c.fetchone()['n']
+
+        c.execute("SELECT COUNT(*) as n FROM affiliation_divergence WHERE computed_at >= datetime('now', '-24 hours')")
+        stats['divergence_records_24h'] = c.fetchone()['n']
+
+        # Last poller heartbeat: most recent snapshot write
+        c.execute("SELECT MAX(polled_at) as last_poll FROM snapshots")
+        row = c.fetchone()
+        stats['last_poll'] = row['last_poll'] if row else None
+
+        # Last RSS fetch: most recent video inserted
+        c.execute("SELECT MAX(discovered_at) as last_rss FROM videos")
+        row = c.fetchone()
+        stats['last_rss'] = row['last_rss'] if row else None
+
+        # Channels breakdown by tier
+        c.execute("SELECT tier, COUNT(*) as n FROM channels GROUP BY tier ORDER BY tier")
+        stats['channels_by_tier'] = {str(r['tier']): r['n'] for r in c.fetchall()}
+
+        # Channels breakdown by affiliation
+        c.execute("SELECT affiliation_type, COUNT(*) as n FROM channels GROUP BY affiliation_type")
+        stats['channels_by_affiliation'] = {r['affiliation_type']: r['n'] for r in c.fetchall()}
+
+        # Hourly snapshot volume over last 24h (sparkline data)
+        c.execute("""
+            SELECT strftime('%H:00', polled_at) as hour, COUNT(*) as n
+            FROM snapshots
+            WHERE polled_at >= datetime('now', '-24 hours')
+            GROUP BY hour ORDER BY hour
+        """)
+        stats['snapshot_sparkline'] = [dict(r) for r in c.fetchall()]
+
+        stats['generated_at'] = datetime.datetime.utcnow().isoformat()
+        return jsonify(stats)
+    finally:
+        conn.close()
+
+
+@app.route('/api/admin/channels', methods=['GET'])
+def admin_get_channels():
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            SELECT channel_id, channel_name, tier, category, affiliation_type, affiliation_org,
+                   subscriber_count, last_updated
+            FROM channels ORDER BY tier ASC, channel_name ASC
+        """)
+        return jsonify([dict(r) for r in c.fetchall()])
+    finally:
+        conn.close()
+
+
+@app.route('/api/admin/channels', methods=['POST'])
+def admin_add_channel():
+    data = request.get_json()
+    if not data or not data.get('channel_id') or not data.get('channel_name'):
+        return jsonify({'error': 'channel_id and channel_name are required'}), 400
+
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            INSERT INTO channels (channel_id, channel_name, tier, category, affiliation_type, affiliation_org)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(channel_id) DO UPDATE SET
+                channel_name = excluded.channel_name,
+                tier = excluded.tier,
+                category = excluded.category,
+                affiliation_type = excluded.affiliation_type,
+                affiliation_org = excluded.affiliation_org
+        """, (
+            data['channel_id'].strip(),
+            data['channel_name'].strip(),
+            int(data.get('tier', 3)),
+            data.get('category', 'commentator').strip(),
+            data.get('affiliation_type', 'independent').strip(),
+            data.get('affiliation_org', '').strip()
+        ))
+        conn.commit()
+        return jsonify({'status': 'ok', 'channel_id': data['channel_id']}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/api/admin/channels/<channel_id>', methods=['DELETE'])
+def admin_delete_channel(channel_id):
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        # Verify it exists first
+        c.execute("SELECT channel_id FROM channels WHERE channel_id = ?", (channel_id,))
+        if not c.fetchone():
+            return jsonify({'error': 'Channel not found'}), 404
+        # Soft-remove: delete from channels (stops future polling) but keep historical videos/snapshots
+        c.execute("DELETE FROM channels WHERE channel_id = ?", (channel_id,))
+        conn.commit()
+        return jsonify({'status': 'removed', 'channel_id': channel_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
     finally:
         conn.close()
