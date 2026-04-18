@@ -36,6 +36,10 @@ def initial_run():
     munger_analytics.seed_historical_baseline(None, os.getenv("YOUTUBE_API_KEY"))
     munger_analytics.compute_engagement_ratios()
     munger_analytics.compute_affiliation_divergence()
+    
+    logging.info("Generating initial AI briefing...")
+    briefing_generator.generate_daily_briefing()
+    
     logging.info("Initial run complete.")
 
 if __name__ == '__main__':
@@ -68,8 +72,8 @@ if __name__ == '__main__':
     scheduler.add_job(munger_analytics.detect_feedback_loops, 'interval', hours=6, max_instances=1)
     scheduler.add_job(munger_analytics.compute_rank_stability, 'cron', day_of_week='sun', hour=0, minute=0, max_instances=1)
 
-    # Nightly AI briefing — runs at 23:00 UTC using local Ollama
-    scheduler.add_job(briefing_generator.generate_daily_briefing, 'cron', hour=23, minute=0, max_instances=1)
+    # Nightly AI briefing — runs at 18:00 UTC (8 PM local CEST) using local Ollama
+    scheduler.add_job(briefing_generator.generate_daily_briefing, 'cron', hour=18, minute=0, max_instances=1)
     
     logging.info("Scheduler started successfully. System is now polling.")
     scheduler.start()

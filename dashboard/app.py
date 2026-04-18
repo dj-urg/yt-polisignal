@@ -438,7 +438,18 @@ def api_daily_briefing():
     cursor = conn.cursor()
 
     try:
-        # Prefer the most recent AI-generated briefing written today
+        # Ensure the table exists (safe for old DB files that predate this migration)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_briefings (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                briefing_text  TEXT NOT NULL,
+                generated_by   TEXT DEFAULT 'ollama',
+                signals_json   TEXT,
+                generated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Serve the most recent AI-generated briefing if one exists
         cursor.execute("""
             SELECT briefing_text, generated_at, generated_by
             FROM daily_briefings
@@ -454,45 +465,58 @@ def api_daily_briefing():
                 "source": row['generated_by']
             })
 
-        # ── Fallback: template-string briefing when AI hasn't run yet ──────────
-        cursor.execute("SELECT pulse_score FROM ecosystem_pulse WHERE json_extract(component_json,'$.raw_pulse') IS NOT NULL ORDER BY recorded_at DESC LIMIT 1")
-        r1 = cursor.fetchone()
-        pulse = r1['pulse_score'] if r1 else 100
+        # ── Fallback template until the first AI briefing runs ─────────────────
+        # Pull whatever data we have right now
+        pulse = 100
+        try:
+            cursor.execute("SELECT pulse_score FROM ecosystem_pulse WHERE json_extract(component_json,'$.raw_pulse') IS NOT NULL ORDER BY recorded_at DESC LIMIT 1")
+            r1 = cursor.fetchone()
+            if r1: pulse = r1['pulse_score']
+        except Exception: pass
 
-        cursor.execute("SELECT keyword, channel_count FROM topic_snapshots ORDER BY id DESC LIMIT 1")
-        r2 = cursor.fetchone()
-        top_kw = r2['keyword'] if r2 else None
-        top_kw_ch = r2['channel_count'] if r2 else 0
+        top_kw, top_kw_ch = None, 0
+        try:
+            cursor.execute("SELECT keyword, channel_count FROM topic_snapshots ORDER BY id DESC LIMIT 1")
+            r2 = cursor.fetchone()
+            if r2: top_kw, top_kw_ch = r2['keyword'], r2['channel_count']
+        except Exception: pass
 
-        first_mover_channel = None
-        hours_ago = 0
+        first_mover_channel, hours_ago = None, 0
         if top_kw:
-            cursor.execute("SELECT c.channel_name, fm.first_seen_at FROM first_movers fm JOIN channels c ON fm.channel_id = c.channel_id WHERE fm.keyword = ?", (top_kw,))
-            r3 = cursor.fetchone()
-            if r3:
-                first_mover_channel = r3['channel_name']
-                dt = datetime.datetime.fromisoformat(r3['first_seen_at'].replace('Z', ''))
-                hours_ago = (datetime.datetime.utcnow() - dt).total_seconds() / 3600
+            try:
+                cursor.execute("SELECT c.channel_name, fm.first_seen_at FROM first_movers fm JOIN channels c ON fm.channel_id = c.channel_id WHERE fm.keyword = ?", (top_kw,))
+                r3 = cursor.fetchone()
+                if r3:
+                    first_mover_channel = r3['channel_name']
+                    dt = datetime.datetime.fromisoformat(r3['first_seen_at'].replace('Z', ''))
+                    hours_ago = (datetime.datetime.utcnow() - dt).total_seconds() / 3600
+            except Exception: pass
 
-        cursor.execute("SELECT c.channel_name FROM rhythm_alerts ra JOIN channels c ON ra.channel_id = c.channel_id WHERE ra.alerted_at > datetime('now','-24 hours')")
-        breakouts = [r[0] for r in cursor.fetchall()]
+        breakouts = []
+        try:
+            cursor.execute("SELECT c.channel_name FROM rhythm_alerts ra JOIN channels c ON ra.channel_id = c.channel_id WHERE ra.alerted_at > datetime('now','-24 hours')")
+            breakouts = [r[0] for r in cursor.fetchall()]
+        except Exception: pass
 
-        cursor.execute("SELECT urgency_ratio FROM title_linguistics ORDER BY recorded_at DESC LIMIT 7")
-        lr = cursor.fetchall()
-        urg_cur = lr[0]['urgency_ratio'] if lr else 0
-        urg_avg = sum(x['urgency_ratio'] for x in lr) / max(len(lr), 1) if lr else 0
-        urg_delta = urg_cur - urg_avg
+        urg_delta = 0
+        try:
+            cursor.execute("SELECT urgency_ratio FROM title_linguistics ORDER BY recorded_at DESC LIMIT 7")
+            lr = cursor.fetchall()
+            if lr:
+                urg_delta = lr[0]['urgency_ratio'] - sum(x['urgency_ratio'] for x in lr) / len(lr)
+        except Exception: pass
 
-        briefing = f"The conservative media ecosystem is running at {pulse:.0f}% of its 30-day baseline — {'above' if pulse > 100 else 'below'} average activity.\n\n"
+        briefing = f"The media ecosystem is running at {pulse:.0f}% of its 30-day baseline — {'above' if pulse > 100 else 'below'} average activity.\n\n"
         if top_kw:
             briefing += f"The dominant converging topic is '{top_kw}'"
             if first_mover_channel:
                 briefing += f", first covered by {first_mover_channel} {hours_ago:.0f} hours ago"
             briefing += f" and now appearing across {top_kw_ch} channels.\n\n"
         if breakouts:
-            briefing += f"⚡ {len(breakouts)} channel(s) in breakout mode: {', '.join(breakouts[:3])}.\n\n"
-        briefing += f"Urgency language in titles is {'up' if urg_delta > 0 else 'down'} {abs(urg_delta * 100):.0f}% vs. the 7-day average.\n\n"
-        briefing += "AI briefing generates nightly at 23:00 UTC via local Ollama."
+            briefing += f"⚡ {len(breakouts)} channel(s) in upload surge mode: {', '.join(breakouts[:3])}.\n\n"
+        if urg_delta != 0:
+            briefing += f"Urgency language in titles is {'up' if urg_delta > 0 else 'down'} {abs(urg_delta * 100):.0f}% vs. the 7-day average.\n\n"
+        briefing += "AI-generated briefing updates daily at 20:00 (local) via Ollama."
 
         return jsonify({
             "briefing": briefing.strip(),
@@ -501,8 +525,9 @@ def api_daily_briefing():
         })
 
     except Exception as e:
+        app.logger.error(f"Briefing error: {e}")
         return jsonify({
-            "briefing": "Intelligence briefing temporarily unavailable — polling syncing.",
+            "briefing": "Briefing not yet available — data is still being collected.",
             "generated_at": datetime.datetime.utcnow().isoformat(),
             "source": "error"
         })
