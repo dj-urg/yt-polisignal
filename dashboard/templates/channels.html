@@ -128,7 +128,8 @@ document.addEventListener('alpine:init', () => {
         
         formatDate(dateStr) {
             if(!dateStr) return "Never";
-            const d = new Date(dateStr + "Z");
+            const safeDate = dateStr.replace(' ', 'T');
+            const d = new Date(safeDate + "Z");
             return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         }
     }));
