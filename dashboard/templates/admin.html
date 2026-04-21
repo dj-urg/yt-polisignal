@@ -191,8 +191,8 @@
       </div>
     </div>
 
-    <div class="bg-white border border-gray-300 overflow-hidden -mx-4 sm:mx-0">
-      <div class="overflow-x-auto px-4 sm:px-0">
+    <div class="bg-white border border-gray-300 overflow-hidden">
+      <div class="overflow-x-auto px-1 sm:px-0">
         <table class="w-full text-left border-collapse text-sm min-w-[800px] sm:min-w-0">
           <thead>
             <tr class="bg-gray-100 border-b-[2px] border-black text-[10px] font-bold uppercase tracking-widest text-gray-600 font-sans">
@@ -298,6 +298,13 @@ document.addEventListener('alpine:init', () => {
     async init() {
       await this.refreshHealth();
       await this.loadChannels();
+      
+      // ResizeObserver for sparkline
+      const resizeObserver = new ResizeObserver(() => {
+        if (this.health.snapshot_sparkline) this.renderSparkline();
+      });
+      resizeObserver.observe(document.getElementById('sparklineChart').parentElement);
+
       // Auto-refresh every 60s
       setInterval(() => this.refreshHealth(), 60000);
     },

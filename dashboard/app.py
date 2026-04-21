@@ -819,41 +819,134 @@ def api_stability():
         cursor.close()
         conn.close()
 
-@app.route('/api/divergence')
-def api_divergence():
+@app.route('/status')
+def status():
+    return render_template('status.html')
+
+@app.route('/api/status')
+def api_status():
     conn = get_db()
     cursor = get_cursor(conn)
-    try:
-        cursor.execute("""
-            SELECT d.*, 
-            (SELECT COUNT(DISTINCT channel_id) FROM keywords WHERE keyword=d.keyword) as hs
-            FROM affiliation_divergence d
-            WHERE d.id IN (SELECT MAX(id) FROM affiliation_divergence GROUP BY keyword)
-        """)
-        rows = [dict(r) for r in cursor.fetchall()]
-        
-        grass = [r for r in rows if r['direction'] == 'independent_leading' and r['divergence_score'] >= 0.6 and r['independent_count'] >= 3 and r['affiliated_count'] <= 1]
-        aff = [r for r in rows if r['direction'] == 'affiliated_leading' and r['divergence_score'] >= 0.5]
-        bal = [r for r in rows if r['direction'] == 'balanced']
-        
-        grass = sorted(grass, key=lambda x: x['independent_count'], reverse=True)
-        aff = sorted(aff, key=lambda x: x['affiliated_count'], reverse=True)
-        bal = sorted(bal, key=lambda x: x['total_channel_coverage'], reverse=True)
-        
-        for r in rows:
-            if isinstance(r['recorded_at'], datetime.datetime):
-                r['recorded_at'] = r['recorded_at'].isoformat()
+    
+    components = []
+    now = datetime.datetime.utcnow()
+    
+    # ─── Component Definition ──────────────────────────────────────────
+    config = [
+        {
+            "name": "RSS Poller",
+            "table": "videos",
+            "col": "published_at",
+            "desc": "Fetches new video metadata from YouTube RSS feeds",
+            "degraded": 120,
+            "outage": 360
+        },
+        {
+            "name": "API Snapshot Poller",
+            "table": "snapshots",
+            "col": "polled_at",
+            "desc": "Enriches videos with view/like/comment counts from YouTube API",
+            "degraded": 120,
+            "outage": 360
+        },
+        {
+            "name": "Keyword Extractor",
+            "table": "keywords",
+            "col": "extracted_at",
+            "desc": "Extracts and stores semantic keywords from video titles and descriptions",
+            "degraded": 120,
+            "outage": 360
+        },
+        {
+            "name": "Engagement Tracker",
+            "table": "engagement_snapshots",
+            "col": "polled_at",
+            "desc": "Computes per-video engagement scores and channel baselines",
+            "degraded": 180,
+            "outage": 480
+        },
+        {
+            "name": "Ecosystem Pulse",
+            "table": "ecosystem_pulse",
+            "col": "recorded_at",
+            "desc": "Records the ecosystem-wide pulse score",
+            "degraded": 180,
+            "outage": 720
+        }
+    ]
 
-        return jsonify({
-            "updated_at": datetime.datetime.utcnow().isoformat(),
-            "grassroots_emerging": grass[:10],
-            "affiliated_pushing": aff[:10],
-            "balanced": bal[:10],
-            "munger_insight": f"{len(grass)} topics currently emerging from independents with no affiliated coverage — potential agenda-setters"
+    worst_status = "operational"
+
+    for cfg in config:
+        # 1. Last Event & Status
+        # Note: For RSS, we use MAX(published_at) as instructed.
+        cursor.execute(f"SELECT MAX({cfg['col']}) as last_e FROM {cfg['table']}")
+        last_event = cursor.fetchone()['last_e']
+        
+        gap = 0
+        status_val = "operational"
+        if last_event:
+            # PostgreSQL returns timezone-aware datetimes if configured, 
+            # but usually it's naive UTC in these apps.
+            if last_event.tzinfo:
+                last_event = last_event.replace(tzinfo=None)
+            
+            gap = int((now - last_event).total_seconds() / 60)
+            if gap > cfg['outage']: 
+                status_val = "outage"
+            elif gap > cfg['degraded']: 
+                status_val = "degraded"
+        else:
+            status_val = "no_data"
+
+        # Update overall status
+        status_ranks = {"operational": 0, "degraded": 1, "outage": 2}
+        if status_ranks.get(status_val, 0) > status_ranks.get(worst_status, 0):
+            worst_status = status_val
+
+        # 2. 90-Day Uptime Strips
+        # Efficient daily aggregation
+        cursor.execute(f"""
+            WITH dates AS (
+                SELECT generate_series(CURRENT_DATE - INTERVAL '89 days', CURRENT_DATE, '1 day')::date AS d
+            )
+            SELECT d.d, COUNT(t.{cfg['col']}) as n
+            FROM dates d
+            LEFT JOIN (
+                SELECT {cfg['col']} FROM {cfg['table']} 
+                WHERE {cfg['col']} >= CURRENT_DATE - INTERVAL '90 days'
+            ) t ON t.{cfg['col']}::date = d.d
+            GROUP BY d.d ORDER BY d.d ASC
+        """)
+        uptime_rows = cursor.fetchall()
+        uptime_90d = []
+        ok_count = 0
+        for r in uptime_rows:
+            stat = "ok" if r['n'] > 0 else "gap"
+            if r['n'] > 0: ok_count += 1
+            uptime_90d.append({
+                "date": r['d'].isoformat() if isinstance(r['d'], (datetime.date, datetime.datetime)) else str(r['d']),
+                "status": stat
+            })
+
+        components.append({
+            "name": cfg['name'],
+            "description": cfg['desc'],
+            "status": status_val,
+            "last_event": last_event.isoformat() if last_event else None,
+            "gap_minutes": gap,
+            "uptime_90d": uptime_90d,
+            "uptime_pct": round((ok_count / 90) * 100, 1) if uptime_90d else 0
         })
-    finally:
-        cursor.close()
-        conn.close()
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "overall": worst_status,
+        "checked_at": now.isoformat(),
+        "components": components
+    })
 
 
 # ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────

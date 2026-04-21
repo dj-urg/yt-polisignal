@@ -17,7 +17,7 @@
 {% endblock %}
 
 {% block content %}
-<main class="grid grid-cols-1 md:grid-cols-12 gap-8 w-full pb-16"
+<main class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 w-full pb-12 md:pb-16"
       x-data="analyticsDashboard()" x-init="init()">
 
   <!-- Page Header -->
@@ -27,7 +27,7 @@
   </div>
 
   <!-- ═══════════════════════ LEFT / CENTER ═══════════════════════ -->
-  <div class="md:col-span-8 space-y-12 pr-0 md:pr-8 md:border-r border-gray-300">
+  <div class="md:col-span-8 order-2 md:order-1 space-y-8 md:space-y-12 pr-0 md:pr-8 md:border-r border-gray-300">
 
     <!-- A: Engagement Heat Index + Affiliation Divergence -->
     <section>
@@ -183,7 +183,7 @@
             <span>Weekly Rank Movement</span>
             <span class="font-normal" x-text="'Week of ' + (stability_data.current_week ?? '—')"></span>
           </h3>
-          <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div class="overflow-x-auto px-1 sm:px-0">
             <table class="w-full text-sm font-sans mb-3 min-w-[300px]">
               <thead class="text-xs text-gray-500 border-b border-gray-200">
                 <tr><th class="text-left font-normal py-1">Channel</th><th class="text-right font-normal py-1">Rank</th><th class="text-right font-normal py-1">Δ</th><th class="text-right font-normal py-1">Type</th></tr>
@@ -237,7 +237,7 @@
   </div>
 
   <!-- ═══════════════════════ RIGHT SIDEBAR ═══════════════════════ -->
-  <div class="md:col-span-4 space-y-10">
+  <div class="md:col-span-4 order-1 md:order-2 space-y-8 md:space-y-10">
 
     <!-- Methodology Quick Reference -->
     <div class="border border-gray-200 p-5 bg-gray-50">
@@ -275,6 +275,7 @@ document.addEventListener('alpine:init', () => {
     feedback_data: {}, feedback_status: 'syncing…',
     stability_data: {}, stability_status: 'syncing…',
     fbInstance: null, stabInstance: null, d3Sim: null,
+    _lastConvergenceData: null,
 
     async init() {
       Chart.defaults.font.family = '"Inter", sans-serif';
@@ -286,6 +287,17 @@ document.addEventListener('alpine:init', () => {
         this.fetchStability(),
         this.fetchConvergence()
       ]);
+
+      // ResizeObserver for dynamic visualizations
+      const resizeObserver = new ResizeObserver(() => {
+        if (this.feedback_data.most_feedback_responsive_channels) this.renderFeedbackChart();
+        if (this.stability_data.history) this.renderStabilityChart();
+        if (this._lastConvergenceData) this.renderD3Network(this._lastConvergenceData);
+      });
+      resizeObserver.observe(document.getElementById('feedbackChart').parentElement);
+      resizeObserver.observe(document.getElementById('stabilityChart').parentElement);
+      resizeObserver.observe(document.getElementById('d3-container'));
+
       setInterval(() => this.fetchHeat(),        6 * 60 * 1000);
       setInterval(() => this.fetchDivergence(),  9 * 60 * 1000);
       setInterval(() => this.fetchFeedback(),   15 * 60 * 1000);
@@ -297,7 +309,7 @@ document.addEventListener('alpine:init', () => {
     async fetchDivergence() { try { const r = await fetch('/api/divergence'); this.divergence_data = await r.json(); } catch(e) {} },
     async fetchFeedback()   { try { const r = await fetch('/api/feedback'); this.feedback_data = await r.json(); this.feedback_status = 'live'; this.renderFeedbackChart(); } catch(e) { this.feedback_status = 'error'; } },
     async fetchStability()  { try { const r = await fetch('/api/stability'); this.stability_data = await r.json(); this.stability_status = 'live'; this.renderStabilityChart(); } catch(e) { this.stability_status = 'error'; } },
-    async fetchConvergence(){ try { const r = await fetch('/api/topics/convergence'); const data = await r.json(); this.renderD3Network(data); } catch(e) {} },
+    async fetchConvergence(){ try { const r = await fetch('/api/topics/convergence'); this._lastConvergenceData = await r.json(); this.renderD3Network(this._lastConvergenceData); } catch(e) {} },
 
     timeAgo(iso) {
       if (!iso) return '—';

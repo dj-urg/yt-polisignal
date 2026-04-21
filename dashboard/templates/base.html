@@ -64,12 +64,13 @@
                     <span class="font-serif text-[24px] leading-none font-bold">PoliSignal</span>
                 </div>
                 
-                <nav class="flex flex-col gap-4 font-bold text-lg">
-                    <a href="/" @click="mobileMenu = false" class="py-2 border-b border-gray-100">Overview</a>
-                    <a href="/analytics" @click="mobileMenu = false" class="py-2 border-b border-gray-100">Analytics</a>
-                    <a href="/channels" @click="mobileMenu = false" class="py-2 border-b border-gray-100">Channels</a>
-                    <a href="/methodology" @click="mobileMenu = false" class="py-2 border-b border-gray-100">Methodology</a>
-                    <a href="/admin" @click="mobileMenu = false" class="py-2 text-econred">Admin</a>
+                <nav class="flex flex-col font-bold text-lg">
+                    <a href="/" @click="mobileMenu = false" class="py-4 border-b border-gray-100 flex items-center">Overview</a>
+                    <a href="/analytics" @click="mobileMenu = false" class="py-4 border-b border-gray-100 flex items-center">Analytics</a>
+                    <a href="/channels" @click="mobileMenu = false" class="py-4 border-b border-gray-100 flex items-center">Channels</a>
+                    <a href="/methodology" @click="mobileMenu = false" class="py-4 border-b border-gray-100 flex items-center">Methodology</a>
+                    <a href="/status" @click="mobileMenu = false" class="py-4 border-b border-gray-100 flex items-center">Status</a>
+                    <a href="/admin" @click="mobileMenu = false" class="py-4 text-econred flex items-center font-black uppercase tracking-widest text-sm">Admin Access</a>
                 </nav>
             </div>
         </div>
@@ -113,12 +114,13 @@
             <a href="/analytics" class="hover:underline transition">Analytics</a>
             <a href="/channels" class="hover:underline transition">Channels</a>
             <a href="/methodology" class="hover:underline transition">Methodology</a>
+            <a href="/status" class="hover:underline transition">Status</a>
             <a href="/admin" class="hover:underline transition text-econred">Admin</a>
         </div>
     </nav>
 
     <!-- Main Content Body -->
-    <div class="max-w-[1280px] mx-auto px-4 md:px-6 mt-6 md:mt-0">
+    <div class="max-w-[1280px] mx-auto px-4 md:px-6 mt-4 md:mt-0">
         {% block content %}{% endblock %}
     </div>
 

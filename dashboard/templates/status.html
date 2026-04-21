@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block body_attrs %}x-data="statusPage()" x-init="init()"{% endblock %}
+
+{% block content %}
+<main class="max-w-4xl mx-auto px-4 py-8 sm:py-12 space-y-12">
+    
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 border-b-[2px] border-black pb-6">
+        <div>
+            <h1 class="text-3xl sm:text-4xl font-serif font-black text-black tracking-tight" style="letter-spacing: -0.02em;">System Status</h1>
+            <p class="text-[10px] sm:text-sm font-sans text-gray-600 mt-1 uppercase tracking-widest font-semibold">Real-Time Data Pipeline Reliability</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs font-sans font-bold text-gray-400 uppercase tracking-widest">
+            <template x-if="loading">
+                <span class="animate-pulse">Refreshing telemetry...</span>
+            </template>
+            <template x-if="!loading">
+                <span x-text="'Last Check: ' + formatLastCheck(checkedAt)"></span>
+            </template>
+        </div>
+    </div>
+
+    <!-- Overall Status Banner -->
+    <div class="border-[3px] border-black p-6 flex items-center gap-6"
+         :class="{
+            'bg-green-50': overall === 'operational',
+            'bg-yellow-50': overall === 'degraded',
+            'bg-red-50': overall === 'outage' || overall === 'no_data'
+         }">
+        <div class="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-black"
+             :class="{
+                'bg-green-500': overall === 'operational',
+                'bg-yellow-500': overall === 'degraded',
+                'bg-econred': overall === 'outage' || overall === 'no_data'
+             }">
+            <template x-if="overall === 'operational'">
+                <span class="text-white text-2xl">✓</span>
+            </template>
+            <template x-if="overall === 'degraded'">
+                <span class="text-white text-2xl font-black">!</span>
+            </template>
+            <template x-if="overall === 'outage' || overall === 'no_data'">
+                <span class="text-white text-2xl font-black">✕</span>
+            </template>
+        </div>
+        <div>
+            <h2 class="text-2xl sm:text-3xl font-serif font-black text-black uppercase tracking-tight"
+                x-text="overall === 'operational' ? 'All Systems Operational' : (overall === 'degraded' ? 'Partial System Degradation' : 'System Outage Detected')">
+            </h2>
+            <p class="text-xs sm:text-sm font-sans text-black font-semibold opacity-70 mt-1"
+               x-text="overall === 'operational' ? 'The telemetry pipeline is performing within normal latency parameters.' : 'One or more data ingestion points are experiencing significant latency.'">
+            </p>
+        </div>
+    </div>
+
+    <!-- Components List -->
+    <div class="space-y-8">
+        <template x-for="comp in components" :key="comp.name">
+            <div class="bg-white border border-gray-300 p-6 shadow-sm hover:shadow-md transition-shadow">
+                <!-- Card Header -->
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 class="text-lg sm:text-xl font-serif font-bold text-black" x-text="comp.name"></h3>
+                        <p class="text-xs text-gray-500 font-sans mt-0.5" x-text="comp.description"></p>
+                    </div>
+                    <div class="flex flex-col items-end gap-1">
+                        <span class="px-3 py-1 font-sans font-bold text-[10px] uppercase tracking-widest border border-black"
+                              :class="{
+                                'bg-green-500 text-white border-green-600': comp.status === 'operational',
+                                'bg-yellow-500 text-white border-yellow-600': comp.status === 'degraded',
+                                'bg-econred text-white border-econred': comp.status === 'outage',
+                                'bg-gray-100 text-gray-400 border-gray-300': comp.status === 'no_data'
+                              }"
+                              x-text="comp.status === 'operational' ? 'Operational' : (comp.status === 'degraded' ? 'Degraded' : (comp.status === 'no_data' ? 'No Data' : 'Outage'))">
+                        </span>
+                        <span class="text-[9px] font-mono font-bold text-gray-400 mt-1" 
+                              x-text="comp.last_event ? 'Latest: ' + formatRelative(comp.last_event) : 'No Telemetry Recorded'">
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 90-Day Uptime Strip -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between text-[10px] font-sans font-bold text-gray-400 uppercase tracking-widest">
+                        <span x-text="'Uptime History (Last 90 Days)'"></span>
+                        <span class="text-black" x-text="comp.uptime_pct + '%'"></span>
+                    </div>
+                    
+                    <div class="flex gap-[2px] h-8 sm:h-10 group relative">
+                        <template x-for="(day, index) in comp.uptime_90d" :key="index">
+                            <div class="flex-1 transition-all duration-150 hover:scale-y-125 hover:z-10 cursor-help relative"
+                                 :class="{
+                                    'bg-green-500': day.status === 'ok',
+                                    'bg-econred': day.status === 'gap',
+                                    'bg-gray-200': day.status === 'no_data'
+                                 }"
+                                 @mouseenter="tooltip = { name: comp.name, date: day.date, status: day.status }"
+                                 @mouseleave="tooltip = null">
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div class="flex justify-between text-[9px] font-sans font-bold text-gray-400 uppercase tracking-tight italic">
+                        <span>90 days ago</span>
+                        <span>Today</span>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Tooltip (Global) -->
+    <div x-show="tooltip" 
+         x-transition
+         class="fixed pointer-events-none bg-black text-white p-3 text-[10px] sm:text-xs font-sans shadow-2xl z-50 border border-white"
+         :style="`left: ${mouse.x + 15}px; top: ${mouse.y - 45}px`"
+         x-cloak>
+        <div class="font-bold border-b border-gray-700 pb-1 mb-1 uppercase tracking-widest" x-text="tooltip?.date"></div>
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full" :class="tooltip?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'"></span>
+            <span x-text="tooltip?.status === 'ok' ? 'Successful Data Capture' : 'Connection Heartbeat Lost'"></span>
+        </div>
+    </div>
+
+    <!-- Footer Note -->
+    <footer class="pt-8 border-t border-gray-200">
+        <p class="text-center text-[10px] sm:text-xs text-gray-400 font-sans leading-relaxed">
+            Status information is derived from direct observation of live database transactions across the telemetry stack.<br>
+            Baseline calibration is updated every 36 minutes. Data reflects local server activity.
+        </p>
+    </footer>
+
+</main>
+{% endblock %}
+
+{% block bottom_scripts %}
+<script>
+function statusPage() {
+    return {
+        components: [],
+        overall: 'operational',
+        checkedAt: null,
+        loading: true,
+        tooltip: null,
+        mouse: { x: 0, y: 0 },
+
+        async init() {
+            // Track mouse for tooltip
+            window.addEventListener('mousemove', (e) => {
+                this.mouse.x = e.clientX;
+                this.mouse.y = e.clientY;
+            });
+
+            await this.refreshStatus();
+            
+            // Auto-refresh every 60s
+            setInterval(() => this.refreshStatus(), 60000);
+        },
+
+        async refreshStatus() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                this.components = data.components;
+                this.overall = data.overall;
+                this.checkedAt = data.checked_at;
+            } catch (e) {
+                console.error("Status fetch failed", e);
+                this.overall = 'outage';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        formatLastCheck(iso) {
+            if (!iso) return 'Pending...';
+            const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        },
+
+        formatRelative(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+            const diff = Math.round((new Date() - d) / 1000 / 60);
+            if (diff < 1) return 'Just now';
+            if (diff < 60) return `${diff}m ago`;
+            if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+            return d.toLocaleDateString();
+        }
+    }
+}
+</script>
+<style>
+[x-cloak] { display: none !important; }
+</style>
+{% endblock %}
