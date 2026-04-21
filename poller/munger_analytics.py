@@ -10,10 +10,11 @@ creates creator supply.
 
 import logging
 import json
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from statistics import median
-from db import get_connection
+from db import get_connection, get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,8 @@ def compute_engagement_ratios(db_conn=None):
     Replaces raw counts with meaningful ratios.
     """
     logger.info("Running Munger: compute_engagement_ratios...")
-    conn = check_db_conn()
-    cursor = conn.cursor()
+    conn = check_db_conn(db_conn)
+    cursor = get_cursor(conn)
     try:
         t_minus_6h = datetime.utcnow() - timedelta(hours=6)
         # Find recent snapshots that aren't in engagement_snapshots yet — 6h window for safe overlap
@@ -37,7 +38,7 @@ def compute_engagement_ratios(db_conn=None):
             SELECT s.video_id, v.channel_id, s.polled_at, s.view_count, s.like_count, s.comment_count
             FROM snapshots s
             JOIN videos v ON s.video_id = v.video_id
-            WHERE s.polled_at > ? 
+            WHERE s.polled_at > %s 
             AND NOT EXISTS (
                 SELECT 1 FROM engagement_snapshots es 
                 WHERE es.video_id = s.video_id AND es.polled_at = s.polled_at
@@ -58,7 +59,7 @@ def compute_engagement_ratios(db_conn=None):
             cursor.execute("""
                 INSERT INTO engagement_snapshots 
                 (video_id, channel_id, polled_at, view_count, like_count, comment_count, likes_per_view, comments_per_view, engagement_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (row['video_id'], row['channel_id'], row['polled_at'], row['view_count'], lc, cc, lpv, cpv, score))
             count += 1
             
@@ -72,44 +73,48 @@ def compute_engagement_ratios(db_conn=None):
     except Exception as e:
         logger.error(f"Error in compute_engagement_ratios: {e}")
     finally:
+        cursor.close()
         if not db_conn: conn.close()
 
 def _update_channel_engagement_baseline(conn):
     """Inner function to compute rolling 30-day baseline."""
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     try:
         cursor.execute("""
             SELECT channel_id, AVG(engagement_score) as avg_score, 
                    AVG(likes_per_view) as avg_lpv, AVG(comments_per_view) as avg_cpv,
                    COUNT(DISTINCT video_id) as v_cnt
             FROM engagement_snapshots
-            WHERE polled_at >= datetime('now', '-30 days')
+            WHERE polled_at >= NOW() - INTERVAL '30 days'
             AND view_count >= 100
             GROUP BY channel_id
         """)
         
-        for row in cursor.fetchall():
+        rows = cursor.fetchall()
+        for row in rows:
             cursor.execute("""
                 INSERT INTO channel_engagement_baseline 
                 (channel_id, avg_engagement_score, avg_likes_per_view, avg_comments_per_view, baseline_video_count, last_calculated_at)
-                VALUES (?, ?, ?, ?, ?, datetime('now'))
+                VALUES (%s, %s, %s, %s, %s, NOW())
                 ON CONFLICT(channel_id) DO UPDATE SET
-                    avg_engagement_score=excluded.avg_engagement_score,
-                    avg_likes_per_view=excluded.avg_likes_per_view,
-                    avg_comments_per_view=excluded.avg_comments_per_view,
-                    baseline_video_count=excluded.baseline_video_count,
-                    last_calculated_at=excluded.last_calculated_at
+                    avg_engagement_score=EXCLUDED.avg_engagement_score,
+                    avg_likes_per_view=EXCLUDED.avg_likes_per_view,
+                    avg_comments_per_view=EXCLUDED.avg_comments_per_view,
+                    baseline_video_count=EXCLUDED.baseline_video_count,
+                    last_calculated_at=EXCLUDED.last_calculated_at
             """, (row['channel_id'], row['avg_score'], row['avg_lpv'], row['avg_cpv'], row['v_cnt']))
         conn.commit()
     except Exception as e:
         logger.error(f"Error in _update_channel_engagement_baseline: {e}")
+    finally:
+        cursor.close()
 
 def compute_engagement_heat_index(db_conn=None):
     """
     Produce a ranked list of videos by engagement intensity right now.
     """
     conn = check_db_conn(db_conn)
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     results = []
     try:
         cursor.execute("""
@@ -120,11 +125,12 @@ def compute_engagement_heat_index(db_conn=None):
             JOIN videos v ON es.video_id = v.video_id
             JOIN channels c ON es.channel_id = c.channel_id
             JOIN channel_engagement_baseline b ON es.channel_id = b.channel_id
-            WHERE es.polled_at >= datetime('now', '-6 hours')
+            WHERE es.polled_at >= NOW() - INTERVAL '6 hours'
             AND es.id IN (SELECT MAX(id) FROM engagement_snapshots GROUP BY video_id)
         """)
         
-        for row in cursor.fetchall():
+        rows = cursor.fetchall()
+        for row in rows:
             base = max(row['base_score'] or 0, 0.001)
             heat_index = row['engagement_score'] / base
             
@@ -133,7 +139,6 @@ def compute_engagement_heat_index(db_conn=None):
             elif heat_index >= 1.2: heat_tier = "warm"
             else: heat_tier = "normal"
             
-            # Use dictionary comprehension to safely copy sqlite3.Row
             d = dict(row)
             d['heat_index'] = heat_index
             d['heat_tier'] = heat_tier
@@ -143,6 +148,7 @@ def compute_engagement_heat_index(db_conn=None):
     except Exception as e:
         logger.error(f"Error in compute_engagement_heat_index: {e}")
     finally:
+        cursor.close()
         if not db_conn: conn.close()
         
     return results
@@ -154,7 +160,7 @@ def detect_feedback_loops(db_conn=None):
     """
     logger.info("Running Munger: detect_feedback_loops...")
     conn = check_db_conn(db_conn)
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     try:
         # Step 1: Find spikes
         cursor.execute("""
@@ -164,11 +170,10 @@ def detect_feedback_loops(db_conn=None):
             JOIN videos v ON es.video_id = v.video_id
             JOIN keywords k ON k.video_id = es.video_id
             JOIN channels c ON c.channel_id = es.channel_id
-            WHERE v.published_at > datetime('now', '-7 days')
+            WHERE v.published_at > NOW() - INTERVAL '7 days'
             AND es.engagement_score > (
                 SELECT AVG(engagement_score) * 1.5
                 FROM engagement_snapshots es2
-                JOIN videos v2 ON es2.video_id = v2.video_id
                 WHERE es2.channel_id = es.channel_id
             )
             AND es.id IN (SELECT MAX(id) FROM engagement_snapshots GROUP BY video_id)
@@ -181,38 +186,40 @@ def detect_feedback_loops(db_conn=None):
                 SELECT COUNT(DISTINCT v.video_id) as response_count
                 FROM videos v
                 JOIN keywords k ON k.video_id = v.video_id
-                WHERE v.channel_id = ?
-                AND k.keyword = ?
-                AND v.published_at > ?
-                AND v.published_at < datetime(?, '+72 hours')
-                AND v.video_id != ?
+                WHERE v.channel_id = %s
+                AND k.keyword = %s
+                AND v.published_at > %s
+                AND v.published_at < %s + INTERVAL '72 hours'
+                AND v.video_id != %s
             """, (spike['channel_id'], spike['keyword'], spike['published_at'], spike['published_at'], spike['video_id']))
             response_count = cursor.fetchone()['response_count']
             
             if response_count >= 2:
                 # Step 3: Compute percentile
                 cursor.execute("""
-                    SELECT CAST(COUNT(*) AS REAL) / MAX(total.cnt, 1) * 100 as pct
+                    SELECT COUNT(*)::float / GREATEST(total.cnt, 1) * 100 as pct
                     FROM engagement_snapshots es
-                    JOIN (SELECT COUNT(*) as cnt FROM engagement_snapshots WHERE channel_id = ?) total
-                    WHERE es.channel_id = ?
-                    AND es.engagement_score <= ?
+                    CROSS JOIN (SELECT COUNT(*) as cnt FROM engagement_snapshots WHERE channel_id = %s) total
+                    WHERE es.channel_id = %s
+                    AND es.engagement_score <= %s
+                    GROUP BY total.cnt
                 """, (spike['channel_id'], spike['channel_id'], spike['engagement_score']))
-                pct = cursor.fetchone()['pct'] or 0
+                row_pct = cursor.fetchone()
+                pct = row_pct['pct'] if row_pct else 0
                 
                 if pct > 75:
                     # Deduplicate: did we log this keyword/channel today?
                     cursor.execute("""
                         SELECT 1 FROM feedback_events 
-                        WHERE channel_id = ? AND keyword = ? 
-                        AND detected_at > datetime('now','-7 days')
+                        WHERE channel_id = %s AND keyword = %s 
+                        AND detected_at > NOW() - INTERVAL '7 days'
                     """, (spike['channel_id'], spike['keyword']))
                     
                     if not cursor.fetchone():
                         cursor.execute("""
                             INSERT INTO feedback_events 
                             (channel_id, keyword, trigger_video_id, trigger_engagement_score, trigger_engagement_percentile, response_video_count)
-                            VALUES (?, ?, ?, ?, ?, ?)
+                            VALUES (%s, %s, %s, %s, %s, %s)
                         """, (spike['channel_id'], spike['keyword'], spike['video_id'], spike['engagement_score'], pct, response_count))
                         logger.info(f"[FEEDBACK] {spike['channel_name']} responded to '{spike['keyword']}' spike ({pct:.0f}th pct, score {spike['engagement_score']:.3f}) with {response_count} videos in 72h")
         
@@ -220,6 +227,7 @@ def detect_feedback_loops(db_conn=None):
     except Exception as e:
         logger.error(f"Error in detect_feedback_loops: {e}")
     finally:
+        cursor.close()
         if not db_conn: conn.close()
 
 def compute_rank_stability(db_conn=None):
@@ -228,7 +236,7 @@ def compute_rank_stability(db_conn=None):
     """
     logger.info("Running Munger: compute_rank_stability...")
     conn = check_db_conn(db_conn)
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     try:
         cursor.execute("""
             SELECT v.channel_id, c.channel_name,
@@ -237,12 +245,12 @@ def compute_rank_stability(db_conn=None):
             JOIN snapshots s2 ON s1.video_id = s2.video_id
             JOIN videos v ON s1.video_id = v.video_id
             JOIN channels c ON c.channel_id = v.channel_id
-            WHERE s1.polled_at >= datetime('now', '-14 days')
-            AND s1.polled_at < datetime('now', '-7 days')
-            AND s2.polled_at >= datetime('now', '-7 days')
-            AND s2.id = (SELECT MAX(id) FROM snapshots WHERE video_id = s2.video_id AND polled_at >= datetime('now', '-7 days'))
-            AND s1.id = (SELECT MAX(id) FROM snapshots WHERE video_id = s1.video_id AND polled_at < datetime('now', '-7 days'))
-            GROUP BY v.channel_id
+            WHERE s1.polled_at >= NOW() - INTERVAL '14 days'
+            AND s1.polled_at < NOW() - INTERVAL '7 days'
+            AND s2.polled_at >= NOW() - INTERVAL '7 days'
+            AND s2.id = (SELECT MAX(id) FROM snapshots WHERE video_id = s2.video_id AND polled_at >= NOW() - INTERVAL '7 days')
+            AND s1.id = (SELECT MAX(id) FROM snapshots WHERE video_id = s1.video_id AND polled_at < NOW() - INTERVAL '7 days')
+            GROUP BY v.channel_id, c.channel_name
         """)
         velocities = [dict(r) for r in cursor.fetchall()]
         velocities.sort(key=lambda x: x['weekly_view_gain'] or 0, reverse=True)
@@ -253,7 +261,7 @@ def compute_rank_stability(db_conn=None):
         # Get prior ranks safely
         cursor.execute("""
             SELECT channel_id, velocity_rank FROM channel_rank_snapshots 
-            WHERE week_of = (SELECT MAX(week_of) FROM channel_rank_snapshots WHERE week_of < ?)
+            WHERE week_of = (SELECT MAX(week_of) FROM channel_rank_snapshots WHERE week_of < %s)
         """, (week_of,))
         prior_ranks = {r['channel_id']: r['velocity_rank'] for r in cursor.fetchall()}
         
@@ -265,11 +273,11 @@ def compute_rank_stability(db_conn=None):
             cursor.execute("""
                 INSERT INTO channel_rank_snapshots 
                 (channel_id, week_of, velocity_score, velocity_rank, rank_change)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT(channel_id, week_of) DO UPDATE SET
-                    velocity_score=excluded.velocity_score,
-                    velocity_rank=excluded.velocity_rank,
-                    rank_change=excluded.rank_change
+                    velocity_score=EXCLUDED.velocity_score,
+                    velocity_rank=EXCLUDED.velocity_rank,
+                    rank_change=EXCLUDED.rank_change
             """, (ch['channel_id'], week_of, ch['weekly_view_gain'], rank, change))
             
             d = ch.copy()
@@ -295,13 +303,13 @@ def compute_rank_stability(db_conn=None):
                 "new_entrants": new_entrants
             })
             
-            # Store rank stability results in its own dedicated table — do NOT pollute ecosystem_pulse
             logger.info(f"[RANK STABILITY] Median weekly shift: {med_change:.1f} positions across {len(shifts)} channels")
             
         conn.commit()
     except Exception as e:
         logger.error(f"Error in compute_rank_stability: {e}")
     finally:
+        cursor.close()
         if not db_conn: conn.close()
 
 def compute_affiliation_divergence(db_conn=None):
@@ -310,9 +318,9 @@ def compute_affiliation_divergence(db_conn=None):
     """
     logger.info("Running Munger: compute_affiliation_divergence...")
     conn = check_db_conn(db_conn)
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     try:
-        cursor.execute("SELECT DISTINCT keyword FROM keywords WHERE extracted_at > datetime('now', '-24 hours')")
+        cursor.execute("SELECT DISTINCT keyword FROM keywords WHERE extracted_at > NOW() - INTERVAL '24 hours'")
         kws = [r['keyword'] for r in cursor.fetchall()]
         
         for keyword in kws:
@@ -320,8 +328,8 @@ def compute_affiliation_divergence(db_conn=None):
                 SELECT c.affiliation_type, COUNT(DISTINCT k.channel_id) as channel_count
                 FROM keywords k
                 JOIN channels c ON k.channel_id = c.channel_id
-                WHERE k.keyword = ?
-                AND k.extracted_at > datetime('now', '-24 hours')
+                WHERE k.keyword = %s
+                AND k.extracted_at > NOW() - INTERVAL '24 hours'
                 GROUP BY c.affiliation_type
             """, (keyword,))
             res = {r['affiliation_type']: r['channel_count'] for r in cursor.fetchall()}
@@ -340,7 +348,7 @@ def compute_affiliation_divergence(db_conn=None):
             cursor.execute("""
                 INSERT INTO affiliation_divergence 
                 (keyword, affiliated_count, independent_count, divergence_score, direction, total_channel_coverage)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s)
             """, (keyword, aff_count, ind_count, divergence, direc, tot))
             
             # Log grassroots emerging
@@ -351,6 +359,7 @@ def compute_affiliation_divergence(db_conn=None):
     except Exception as e:
         logger.error(f"Error in compute_affiliation_divergence: {e}")
     finally:
+        cursor.close()
         if not db_conn: conn.close()
 
 def seed_historical_baseline(db_conn, api_key):
@@ -359,9 +368,10 @@ def seed_historical_baseline(db_conn, api_key):
     """
     logger.info("Running Munger: seed_historical_baseline...")
     conn = check_db_conn(db_conn)
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     try:
-        count = cursor.execute("SELECT COUNT(*) as c FROM ecosystem_baseline_seed").fetchone()['c']
+        cursor.execute("SELECT COUNT(*) as c FROM ecosystem_baseline_seed")
+        count = cursor.fetchone()['c']
         if count > 0:
             logger.info("Baseline already seeded, skipping.")
             return
@@ -394,17 +404,19 @@ def seed_historical_baseline(db_conn, api_key):
                         sub = int(stats.get('subscriberCount', 0))
                         
                         cursor.execute("""
-                            INSERT OR IGNORE INTO ecosystem_baseline_seed
+                            INSERT INTO ecosystem_baseline_seed
                             (channel_id, seed_date, view_count, subscriber_count, source)
-                            VALUES (?, ?, ?, ?, 'api_seed')
+                            VALUES (%s, %s, %s, %s, 'api_seed')
+                            ON CONFLICT(channel_id, seed_date) DO NOTHING
                         """, (ch_id, today, vw, sub))
                         
                         # Apply synthetic baseline approximations
                         cursor.execute("""
-                            INSERT OR IGNORE INTO channel_engagement_baseline
+                            INSERT INTO channel_engagement_baseline
                             (channel_id, avg_engagement_score, avg_likes_per_view,
                              avg_comments_per_view, baseline_video_count, last_calculated_at)
-                            VALUES (?, ?, ?, ?, 0, datetime('now'))
+                            VALUES (%s, %s, %s, %s, 0, NOW())
+                            ON CONFLICT(channel_id) DO NOTHING
                         """, (ch_id, SEED_ENGAGEMENT_SCORE, SEED_LIKES_PER_VIEW, SEED_COMMENTS_PER_VIEW))
                         
             except Exception as nested_e:
@@ -414,4 +426,5 @@ def seed_historical_baseline(db_conn, api_key):
     except Exception as e:
         logger.error(f"Error in seed_historical_baseline: {e}")
     finally:
+        cursor.close()
         if not db_conn: conn.close()

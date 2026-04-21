@@ -1,23 +1,23 @@
 {% extends "base.html" %}
 
 {% block content %}
-<main class="max-w-4xl mx-auto px-4 py-12 space-y-12">
+<main class="max-w-4xl mx-auto px-4 py-8 sm:py-12 space-y-10 sm:space-y-12">
     <!-- Header Section -->
     <div class="border-b-[3px] border-black pb-6">
-        <h1 class="text-4xl md:text-5xl font-black font-serif text-black leading-tight tracking-tight mb-4" style="letter-spacing: -0.02em;">
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-black font-serif text-black leading-tight tracking-tight mb-4" style="letter-spacing: -0.02em;">
             Methodology & Technical Architecture
         </h1>
-        <p class="text-xl font-serif text-gray-500 italic max-w-2xl">
+        <p class="text-lg sm:text-xl font-serif text-gray-500 italic max-w-2xl">
             A comprehensive overview of the analytical infrastructure behind YT PoliSignal.
         </p>
     </div>
 
     <!-- Article Content -->
-    <article class="prose prose-lg max-w-none text-econtext font-serif leading-relaxed">
+    <article class="prose prose-base sm:prose-lg max-w-none text-econtext font-serif leading-relaxed">
         
         <!-- Section: Theoretical Foundation -->
-        <div class="mb-12">
-            <h2 class="text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">Theoretical Foundation: Demand-Side Tracking</h2>
+        <div class="mb-10 sm:mb-12">
+            <h2 class="text-xl sm:text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">Theoretical Foundation: Demand-Side Tracking</h2>
             <p class="mb-4">
                 Historically, media ecosystems were analyzed by tracking what creators and networks published (the "Supply"). YT PoliSignal fundamentally rejects this approach, instead implementing Kevin Munger's <i>Supply and Demand Framework</i> (2024). We hypothesize that in modern algorithmic environments, creators do not lead audiences; audiences lead creators.
             </p>
@@ -27,12 +27,12 @@
         </div>
 
         <!-- Section 1 -->
-        <div class="mb-12">
-            <h2 class="text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">Engagement Heat Indexing</h2>
+        <div class="mb-10 sm:mb-12">
+            <h2 class="text-xl sm:text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">Engagement Heat Indexing</h2>
             <p class="mb-4">
                 The core metric of demand is not "views" (which can be passive or algorithmically forced), but active friction. YT PoliSignal scrapes metadata across the ecosystem every 36 minutes, generating an <strong>Engagement Score</strong> where mathematically:
             </p>
-            <ul class="list-disc pl-6 space-y-3 font-sans text-[15px] text-gray-800">
+            <ul class="list-disc pl-6 space-y-3 font-sans text-sm sm:text-[15px] text-gray-800">
                 <li><strong>Likes</strong> are weighted at a standard 1.0.</li>
                 <li><strong>Comments</strong> are weighted at 3.0, representing a significantly higher friction barrier of active audience participation.</li>
             </ul>
@@ -42,8 +42,8 @@
         </div>
 
         <!-- Section 2 -->
-        <div class="mb-12">
-            <h2 class="text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">Audience Feedback Loops</h2>
+        <div class="mb-10 sm:mb-12">
+            <h2 class="text-xl sm:text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">Audience Feedback Loops</h2>
             <p class="mb-4">
                 To operationalize the theory that "Supply Follows Demand," the system actively hunts for Feedback Events. 
             </p>
@@ -56,8 +56,8 @@
         </div>
 
         <!-- Section 3: Affiliation Divergence -->
-        <div class="mb-12">
-            <h2 class="text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">Affiliation Divergence Tracker</h2>
+        <div class="mb-10 sm:mb-12">
+            <h2 class="text-xl sm:text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">Affiliation Divergence Tracker</h2>
             <p class="mb-6">
                 All 60+ monitored broadcasters within our dataset are rigorously stratified into two classifications:
             </p>
@@ -65,39 +65,39 @@
                 <!-- Affiliated -->
                 <div class="flex flex-col md:flex-row gap-4 items-start border-t border-gray-200 pt-6">
                     <div class="w-full md:w-1/4">
-                        <span class="bg-blue-100 text-blue-800 border border-blue-300 px-3 py-1 text-xs font-bold uppercase tracking-widest">Affiliated</span>
+                        <span class="bg-blue-100 text-blue-800 border border-blue-300 px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-widest inline-block">Affiliated</span>
                     </div>
                     <div class="w-full md:w-3/4">
-                        <h3 class="text-lg font-bold text-black mb-1">Institutional Backing</h3>
-                        <p class="text-[15px] text-gray-700">Channels with explicit organizational ties to legacy media, advocacy groups, or major corporations (e.g., Fox News, Daily Wire, PragerU).</p>
+                        <h3 class="text-base sm:text-lg font-bold text-black mb-1">Institutional Backing</h3>
+                        <p class="text-sm sm:text-[15px] text-gray-700">Channels with explicit organizational ties to legacy media, advocacy groups, or major corporations (e.g., Fox News, Daily Wire, PragerU).</p>
                     </div>
                 </div>
                 <!-- Independent -->
                 <div class="flex flex-col md:flex-row gap-4 items-start border-t border-gray-200 pt-6 border-b pb-6">
                     <div class="w-full md:w-1/4">
-                        <span class="bg-orange-100 text-orange-800 border border-orange-300 px-3 py-1 text-xs font-bold uppercase tracking-widest">Independent</span>
+                        <span class="bg-orange-100 text-orange-800 border border-orange-300 px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-widest inline-block">Independent</span>
                     </div>
                     <div class="w-full md:w-3/4">
-                        <h3 class="text-lg font-bold text-black mb-1">Personality-Driven</h3>
-                        <p class="text-[15px] text-gray-700">Autonomous content creators who exist entirely as their own brand and lack traditional external safety nets (e.g., Tim Pool, Glenn Beck).</p>
+                        <h3 class="text-base sm:text-lg font-bold text-black mb-1">Personality-Driven</h3>
+                        <p class="text-sm sm:text-[15px] text-gray-700">Autonomous content creators who exist entirely as their own brand and lack traditional external safety nets (e.g., Tim Pool, Glenn Beck).</p>
                     </div>
                 </div>
             </div>
-            <p class="mt-6">
+            <p class="mt-6 text-sm sm:text-base">
                 By parsing semantic keywords and mapping them strictly to independent vs. affiliated networks, YT PoliSignal is able to output an absolute <strong>Divergence Index</strong>. This mathematically identifies narratives that are organically boiling up entirely from grassroots creators long before institutional outlets notice them.
             </p>
         </div>
 
         <!-- Section 4: AI Editorial Intelligence -->
-        <div class="mb-12">
-            <h2 class="text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">AI Editorial Intelligence</h2>
-            <p class="mb-4">
+        <div class="mb-10 sm:mb-12">
+            <h2 class="text-xl sm:text-2xl font-bold font-sans text-black uppercase tracking-widest border-b border-gray-300 pb-2 mb-6">AI Editorial Intelligence</h2>
+            <p class="mb-4 text-sm sm:text-base">
                 Raw data is only as valuable as the synthesis derived from it. To provide a daily "bird's eye view," YT PoliSignal implements a local <strong>Large Language Model (LLM)</strong> pipeline. 
             </p>
-            <p class="mb-4">
+            <p class="mb-4 text-sm sm:text-base">
                 Every evening at 20:00 local time, the engine aggregates the day's meta-signals—Pulse scores, divergence records, and breakout channels—and feeds them into a locally hosted instance of <strong>Ollama (Llama 3.2)</strong>. 
             </p>
-            <p class="mb-4">
+            <p class="mb-4 text-sm sm:text-base">
                 The AI acts as an objective editorial filter, synthesizing thousands of data points into a concise, high-signal briefing. This provides an automated layer of narrative detection that bridges the gap between quantitative tracking and qualitative media analysis.
             </p>
         </div>

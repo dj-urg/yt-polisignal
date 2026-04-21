@@ -3,39 +3,39 @@
 {% block body_attrs %}x-data="channelsData()" x-init="init()"{% endblock %}
 
 {% block content %}
-<main class="max-w-7xl mx-auto px-4 py-8 space-y-6">
+<main class="max-w-7xl mx-auto px-4 py-6 sm:py-8 space-y-6">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b-[2px] border-black pb-4">
         <div>
-            <h1 class="text-3xl font-serif font-black text-black tracking-tight" style="letter-spacing: -0.02em;">Channel Index</h1>
-            <p class="text-sm font-sans text-gray-600 mt-1 uppercase tracking-widest font-semibold">Active Monitoring Directory</p>
+            <h1 class="text-2xl sm:text-3xl font-serif font-black text-black tracking-tight" style="letter-spacing: -0.02em;">Channel Index</h1>
+            <p class="text-[10px] sm:text-sm font-sans text-gray-600 mt-1 uppercase tracking-widest font-semibold">Active Monitoring Directory</p>
         </div>
         
         <!-- Search Bar -->
         <div class="relative w-full md:w-64 border border-gray-400 bg-white shadow-sm focus-within:border-black transition">
             <input type="text" x-model="searchQuery" placeholder="Search parameters..." 
                    class="w-full bg-transparent pl-9 pr-4 py-2 text-sm text-black font-semibold font-sans focus:outline-none placeholder-gray-400">
-            <span class="absolute left-3 top-2 text-gray-400 text-sm">🔍</span>
+            <span class="absolute left-3 top-2.5 text-gray-400 text-sm">🔍</span>
         </div>
     </div>
 
-    <div class="bg-white border border-gray-300 shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+    <div class="bg-white border border-gray-300 shadow-sm overflow-hidden -mx-4 sm:mx-0">
+        <div class="overflow-x-auto px-4 sm:px-0">
+            <table class="w-full text-left border-collapse min-w-[700px] sm:min-w-0">
                 <thead>
-                    <tr class="bg-gray-100 border-b-[2px] border-black text-black text-xs font-bold uppercase tracking-widest">
-                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('channel_name')">
+                    <tr class="bg-gray-100 border-b-[2px] border-black text-black text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+                        <th class="px-3 sm:px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('channel_name')">
                             Entity / Channel <span class="text-econred ml-1" x-show="sortCol === 'channel_name'" x-text="sortAsc ? '▲' : '▼'"></span>
                         </th>
-                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('tier')">
+                        <th class="px-3 sm:px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('tier')">
                             Class <span class="text-econred ml-1" x-show="sortCol === 'tier'" x-text="sortAsc ? '▲' : '▼'"></span>
                         </th>
-                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('category')">
+                        <th class="px-3 sm:px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('category')">
                             Category <span class="text-econred ml-1" x-show="sortCol === 'category'" x-text="sortAsc ? '▲' : '▼'"></span>
                         </th>
-                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('subscriber_count')">
-                            Footprint (Subs) <span class="text-econred ml-1" x-show="sortCol === 'subscriber_count'" x-text="sortAsc ? '▲' : '▼'"></span>
+                        <th class="px-3 sm:px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('subscriber_count')">
+                            Footprint <span class="text-econred ml-1" x-show="sortCol === 'subscriber_count'" x-text="sortAsc ? '▲' : '▼'"></span>
                         </th>
-                        <th class="px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('last_updated')">
+                        <th class="px-3 sm:px-5 py-4 cursor-pointer select-none group hover:bg-gray-200 transition" @click="sortBy('last_updated')">
                             Latest Telemetry <span class="text-econred ml-1" x-show="sortCol === 'last_updated'" x-text="sortAsc ? '▲' : '▼'"></span>
                         </th>
                     </tr>
@@ -43,8 +43,8 @@
                 <tbody class="divide-y divide-gray-300">
                     <template x-for="ch in filteredChannels" :key="ch.channel_id">
                         <tr class="hover:bg-gray-50 transition duration-150">
-                            <td class="px-5 py-4 font-bold text-black border-l-4 border-transparent hover:border-econred transition" x-text="ch.channel_name"></td>
-                            <td class="px-5 py-4">
+                            <td class="px-3 sm:px-5 py-4 font-bold text-black border-l-4 border-transparent hover:border-econred transition" x-text="ch.channel_name"></td>
+                            <td class="px-3 sm:px-5 py-4">
                                 <span class="text-[10px] font-bold uppercase tracking-widest text-black border border-gray-400 px-2 py-0.5"
                                       :class="{
                                           'bg-black text-white border-black': ch.tier === 1,
@@ -54,9 +54,9 @@
                                     Tier <span x-text="ch.tier"></span>
                                 </span>
                             </td>
-                            <td class="px-5 py-4 text-sm text-gray-700 capitalize font-medium" x-text="ch.category"></td>
-                            <td class="px-5 py-4 text-sm font-bold font-mono text-econdark" x-text="formatNumber(ch.subscriber_count)"></td>
-                            <td class="px-5 py-4 text-xs font-mono text-gray-500" x-text="formatDate(ch.last_updated)"></td>
+                            <td class="px-3 sm:px-5 py-4 text-sm text-gray-700 capitalize font-medium" x-text="ch.category"></td>
+                            <td class="px-3 sm:px-5 py-4 text-sm font-bold font-mono text-econdark" x-text="formatNumber(ch.subscriber_count)"></td>
+                            <td class="px-3 sm:px-5 py-4 text-xs font-mono text-gray-400" x-text="formatDate(ch.last_updated)"></td>
                         </tr>
                     </template>
                     <tr x-show="filteredChannels.length === 0">

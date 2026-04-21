@@ -13,7 +13,7 @@ import os
 import urllib.request
 import urllib.error
 from datetime import datetime, timedelta
-from db import get_connection
+from db import get_connection, get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +26,15 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
 def _gather_signals():
     """Pull structured trend data from the DB for today's briefing context."""
     conn = get_connection()
-    c = conn.cursor()
+    c = get_cursor(conn)
     signals = {}
 
     try:
         # 1. Ecosystem pulse score
         c.execute("""
-            SELECT pulse_score, json_extract(component_json, '$.calibration_mode') as mode
+            SELECT pulse_score, (component_json::json->>'calibration_mode') as mode
             FROM ecosystem_pulse
-            WHERE json_extract(component_json, '$.raw_pulse') IS NOT NULL
+            WHERE (component_json::json->>'raw_pulse') IS NOT NULL
             ORDER BY recorded_at DESC LIMIT 1
         """)
         row = c.fetchone()
@@ -45,9 +45,9 @@ def _gather_signals():
         c.execute("""
             SELECT keyword, COUNT(DISTINCT channel_id) as ch_cnt, COUNT(*) as total_mentions
             FROM keywords
-            WHERE extracted_at >= datetime('now', '-24 hours')
+            WHERE extracted_at >= NOW() - INTERVAL '24 hours'
             GROUP BY keyword
-            HAVING ch_cnt >= 3
+            HAVING COUNT(DISTINCT channel_id) >= 3
             ORDER BY ch_cnt DESC, total_mentions DESC
             LIMIT 10
         """)
@@ -64,7 +64,7 @@ def _gather_signals():
             JOIN channels c ON v.channel_id = c.channel_id
             JOIN snapshots s_latest ON s_latest.video_id = v.video_id
             JOIN snapshots s_prev   ON s_prev.video_id   = v.video_id
-            WHERE v.published_at >= datetime('now', '-24 hours')
+            WHERE v.published_at >= NOW() - INTERVAL '24 hours'
               AND s_latest.id = (SELECT MAX(id) FROM snapshots WHERE video_id = v.video_id)
               AND s_prev.id   = (SELECT MIN(id) FROM snapshots WHERE video_id = v.video_id)
               AND s_latest.id != s_prev.id
@@ -104,7 +104,7 @@ def _gather_signals():
             SELECT c.channel_name, c.affiliation_type, ra.uploads_today, ra.deviation_ratio
             FROM rhythm_alerts ra
             JOIN channels c ON ra.channel_id = c.channel_id
-            WHERE ra.alerted_at >= datetime('now', '-24 hours')
+            WHERE ra.alerted_at >= NOW() - INTERVAL '24 hours'
             ORDER BY ra.deviation_ratio DESC
             LIMIT 4
         """)
@@ -132,7 +132,7 @@ def _gather_signals():
                    fe.response_video_count
             FROM feedback_events fe
             JOIN channels c ON c.channel_id = fe.channel_id
-            WHERE fe.detected_at >= datetime('now', '-24 hours')
+            WHERE fe.detected_at >= NOW() - INTERVAL '24 hours'
             ORDER BY fe.trigger_engagement_percentile DESC
             LIMIT 3
         """)
@@ -146,6 +146,7 @@ def _gather_signals():
     except Exception as e:
         logger.error(f"[BRIEFING] Error gathering signals: {e}")
     finally:
+        c.close()
         conn.close()
 
     return signals
@@ -192,7 +193,7 @@ def _build_prompt(signals):
     urg = signals.get('urgency_today')
     urg_avg = signals.get('urgency_avg_7d')
     if urg is not None:
-        direction = "above" if urg > urg_avg else "below"
+        direction = "above" if urg > (urg_avg or 0) else "below"
         lines.append(f"Urgency language in titles: {urg}% today vs {urg_avg}% 7-day average ({direction} average)")
 
     feedbacks = signals.get('feedback_events', [])
@@ -244,17 +245,18 @@ def _call_ollama(prompt):
 def _store_briefing(text, signals):
     """Persist the generated briefing to the daily_briefings table."""
     conn = get_connection()
-    c = conn.cursor()
+    c = get_cursor(conn)
     try:
         c.execute("""
             INSERT INTO daily_briefings (briefing_text, generated_by, signals_json, generated_at)
-            VALUES (?, 'ollama', ?, datetime('now'))
+            VALUES (%s, 'ollama', %s, NOW())
         """, (text, json.dumps(signals)))
         conn.commit()
         logger.info("[BRIEFING] Stored today's AI briefing to database.")
     except Exception as e:
         logger.error(f"[BRIEFING] Failed to store briefing: {e}")
     finally:
+        c.close()
         conn.close()
 
 

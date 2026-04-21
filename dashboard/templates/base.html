@@ -35,18 +35,63 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     {% block head_scripts %}{% endblock %}
 </head>
-<body class="bg-white text-econtext font-sans antialiased min-h-screen" {% block body_attrs %}{% endblock %}>
+<body class="bg-white text-econtext font-sans antialiased min-h-screen" x-data="{ mobileMenu: false }" :class="{ 'overflow-hidden': mobileMenu }" {% block body_attrs %}{% endblock %}>
 
-    <!-- Top Header mimicking the screenshot -->
-    <header class="bg-white w-full">
-        <div class="max-w-[1280px] mx-auto px-4 md:px-6 flex justify-between items-center py-4">
-            <!-- The classic Red Block Logo -->
-            <div class="bg-econred text-white w-48 py-4 px-4 flex flex-col justify-center">
-                <span class="font-serif text-[24px] leading-none mb-0.5" style="letter-spacing: 0.5px;">YT</span>
-                <span class="font-serif text-[30px] leading-none font-bold" style="letter-spacing: -1px;">PoliSignal</span>
+    <!-- Mobile Menu Drawer -->
+    <div x-show="mobileMenu" 
+         class="fixed inset-0 z-50 md:hidden" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         style="display: none;">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black bg-opacity-50" @click="mobileMenu = false"></div>
+        
+        <!-- Drawer Content -->
+        <div class="absolute inset-y-0 left-0 w-64 bg-white shadow-xl"
+             x-transition:enter="transition ease-out duration-300 transform"
+             x-transition:enter-start="-translate-x-full"
+             x-transition:enter-end="translate-x-0"
+             x-transition:leave="transition ease-in duration-200 transform"
+             x-transition:leave-start="translate-x-0"
+             x-transition:leave-end="-translate-x-full">
+            <div class="p-6">
+                <div class="bg-econred text-white w-full py-4 px-4 flex flex-col justify-center mb-8">
+                    <span class="font-serif text-[20px] leading-none mb-0.5">YT</span>
+                    <span class="font-serif text-[24px] leading-none font-bold">PoliSignal</span>
+                </div>
+                
+                <nav class="flex flex-col gap-4 font-bold text-lg">
+                    <a href="/" @click="mobileMenu = false" class="py-2 border-b border-gray-100">Overview</a>
+                    <a href="/analytics" @click="mobileMenu = false" class="py-2 border-b border-gray-100">Analytics</a>
+                    <a href="/channels" @click="mobileMenu = false" class="py-2 border-b border-gray-100">Channels</a>
+                    <a href="/methodology" @click="mobileMenu = false" class="py-2 border-b border-gray-100">Methodology</a>
+                    <a href="/admin" @click="mobileMenu = false" class="py-2 text-econred">Admin</a>
+                </nav>
             </div>
+        </div>
+    </div>
+
+    <!-- Top Header -->
+    <header class="bg-white w-full sticky top-0 z-40 border-b border-gray-200 md:border-none md:relative">
+        <div class="max-w-[1280px] mx-auto px-4 md:px-6 flex justify-between items-center py-3 md:py-4">
+            <!-- Hamburger Button -->
+            <button @click="mobileMenu = true" class="md:hidden p-2 -ml-2 text-black" aria-label="Open menu">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
+
+            <!-- Logo -->
+            <a href="/" class="bg-econred text-white w-32 md:w-48 py-2 md:py-4 px-3 md:px-4 flex flex-col justify-center">
+                <span class="font-serif text-[18px] md:text-[24px] leading-none mb-0.5" style="letter-spacing: 0.5px;">YT</span>
+                <span class="font-serif text-[22px] md:text-[30px] leading-none font-bold" style="letter-spacing: -1px;">PoliSignal</span>
+            </a>
             
-            <!-- Top Right Nav Items (Static representations) -->
+            <!-- Top Right Nav Items (Desktop) -->
             <div class="hidden md:flex items-center gap-5 text-sm font-bold text-black font-sans">
                 {% block header_right %}
                 <div class="flex items-center gap-2">
@@ -55,12 +100,15 @@
                 </div>
                 {% endblock %}
             </div>
+
+            <!-- Placeholder for mobile right space to keep logo centered if needed, or just let it stay right -->
+            <div class="w-10 md:hidden"></div>
         </div>
     </header>
 
-    <!-- The Subnav (Weekly edition... World in brief... style) -->
-    <nav class="border-y border-gray-300 w-full mb-8">
-        <div class="max-w-[1280px] mx-auto px-4 md:px-6 py-2.5 flex items-center gap-6 overflow-x-auto whitespace-nowrap text-[13px] font-bold text-black font-sans">
+    <!-- The Subnav (Desktop Only) -->
+    <nav class="hidden md:block border-y border-gray-300 w-full mb-8">
+        <div class="max-w-[1280px] mx-auto px-4 md:px-6 py-2.5 flex items-center gap-6 text-[13px] font-bold text-black font-sans">
             <a href="/" class="hover:underline transition">Overview</a>
             <a href="/analytics" class="hover:underline transition">Analytics</a>
             <a href="/channels" class="hover:underline transition">Channels</a>
@@ -70,16 +118,17 @@
     </nav>
 
     <!-- Main Content Body -->
-    <div class="max-w-[1280px] mx-auto px-4 md:px-6">
+    <div class="max-w-[1280px] mx-auto px-4 md:px-6 mt-6 md:mt-0">
         {% block content %}{% endblock %}
     </div>
 
-    <!-- Minimum Viable Footer -->
-    <footer class="max-w-[1280px] mx-auto px-4 md:px-6 py-12 mt-16 border-t border-gray-300 text-xs text-gray-500 font-sans flex justify-between">
+    <!-- Responsive Footer -->
+    <footer class="max-w-[1280px] mx-auto px-4 md:px-6 py-8 md:py-12 mt-16 border-t border-gray-300 text-[10px] md:text-xs text-gray-500 font-sans flex flex-col md:flex-row justify-between gap-4">
         <span>© 2026 YT PoliSignal</span>
-        <span>Independent Broadcasting Telemetry</span>
+        <span class="md:text-right">Independent Broadcasting Telemetry</span>
     </footer>
 
     {% block bottom_scripts %}{% endblock %}
 </body>
+
 </html>

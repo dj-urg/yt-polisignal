@@ -10,16 +10,20 @@
 <main class="space-y-10 pb-16">
 
   <!-- Page Header -->
-  <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b-[2px] border-black pb-4">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b-[2px] border-black pb-4">
     <div>
-      <h1 class="text-3xl font-serif font-black text-black tracking-tight" style="letter-spacing: -0.02em;">System Administration</h1>
-      <p class="text-sm font-sans text-gray-600 mt-1 uppercase tracking-widest font-semibold">Pipeline Intelligence & Channel Control</p>
+      <h1 class="text-2xl sm:text-3xl font-serif font-black text-black tracking-tight" style="letter-spacing: -0.02em;">System Administration</h1>
+      <p class="text-[10px] sm:text-sm font-sans text-gray-600 mt-1 uppercase tracking-widest font-semibold">Pipeline Intelligence & Channel Control</p>
     </div>
-    <div class="flex items-center gap-3">
-      <span class="w-2.5 h-2.5 rounded-full" :class="health.last_poll ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></span>
-      <span class="text-xs font-bold font-sans uppercase tracking-widest" x-text="health.last_poll ? 'Poller Active' : 'No Activity'"></span>
-      <button @click="refreshHealth()" class="ml-4 text-xs font-bold border border-black px-3 py-1.5 hover:bg-black hover:text-white transition font-sans">↻ Refresh</button>
-      <a href="/admin/logout" class="text-xs font-bold border border-gray-300 px-3 py-1.5 hover:bg-econred hover:text-white hover:border-econred transition font-sans">Sign Out</a>
+    <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+      <div class="flex items-center gap-3">
+        <span class="w-2.5 h-2.5 rounded-full" :class="health.last_poll ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></span>
+        <span class="text-[10px] sm:text-xs font-bold font-sans uppercase tracking-widest" x-text="health.last_poll ? 'Poller Active' : 'No Activity'"></span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button @click="refreshHealth()" class="text-[10px] sm:text-xs font-bold border border-black px-3 py-1.5 hover:bg-black hover:text-white transition font-sans min-h-[36px]">↻ Refresh</button>
+        <a href="/admin/logout" class="text-[10px] sm:text-xs font-bold border border-gray-300 px-3 py-1.5 hover:bg-econred hover:text-white hover:border-econred transition font-sans min-h-[36px]">Sign Out</a>
+      </div>
     </div>
   </div>
 
@@ -28,51 +32,51 @@
   <!-- ══════════════════════════════════════════════════════════ -->
 
   <section>
-    <h2 class="text-xs font-bold uppercase tracking-widest text-gray-500 font-sans mb-4 border-b border-gray-200 pb-2">Data Pipeline Pulse</h2>
+    <h2 class="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-gray-500 font-sans mb-4 border-b border-gray-200 pb-2">Data Pipeline Pulse</h2>
 
     <!-- Stat Cards Grid -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-300 border border-gray-300">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-gray-300 border border-gray-300">
 
-      <div class="bg-white p-5 flex flex-col gap-1">
+      <div class="bg-white p-4 sm:p-5 flex flex-col gap-1 text-center sm:text-left">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Channels Tracked</span>
-        <span class="text-4xl font-serif font-black text-black" x-text="health.total_channels ?? '—'"></span>
-        <div class="mt-2 flex gap-2 flex-wrap">
+        <span class="text-3xl sm:text-4xl font-serif font-black text-black" x-text="health.total_channels ?? '—'"></span>
+        <div class="mt-2 flex gap-2 flex-wrap justify-center sm:justify-start">
           <template x-for="(count, tier) in (health.channels_by_tier ?? {})" :key="tier">
-            <span class="text-[10px] font-bold font-sans border border-gray-300 px-1.5 py-0.5"
+            <span class="text-[9px] sm:text-[10px] font-bold font-sans border border-gray-300 px-1.5 py-0.5"
                   x-text="`T${tier}: ${count}`"></span>
           </template>
         </div>
       </div>
 
-      <div class="bg-white p-5 flex flex-col gap-1">
+      <div class="bg-white p-4 sm:p-5 flex flex-col gap-1 text-center sm:text-left">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Total Videos Indexed</span>
-        <span class="text-4xl font-serif font-black text-black" x-text="(health.total_videos ?? 0).toLocaleString()"></span>
+        <span class="text-3xl sm:text-4xl font-serif font-black text-black" x-text="(health.total_videos ?? 0).toLocaleString()"></span>
         <span class="text-xs text-gray-500 font-sans mt-2" x-text="`+${health.videos_24h ?? 0} in last 24h`"></span>
       </div>
 
-      <div class="bg-white p-5 flex flex-col gap-1">
+      <div class="bg-white p-4 sm:p-5 flex flex-col gap-1 text-center sm:text-left">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Engagement Snapshots</span>
-        <span class="text-4xl font-serif font-black text-black" x-text="(health.total_snapshots ?? 0).toLocaleString()"></span>
+        <span class="text-3xl sm:text-4xl font-serif font-black text-black" x-text="(health.total_snapshots ?? 0).toLocaleString()"></span>
         <span class="text-xs text-gray-500 font-sans mt-2" x-text="`+${health.snapshots_24h ?? 0} in last 24h`"></span>
       </div>
 
-      <div class="bg-white p-5 flex flex-col gap-1">
+      <div class="bg-white p-4 sm:p-5 flex flex-col gap-1 text-center sm:text-left">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Feedback Events</span>
-        <span class="text-4xl font-serif font-black text-black" x-text="health.total_feedback_events ?? '—'"></span>
+        <span class="text-3xl sm:text-4xl font-serif font-black text-black" x-text="health.total_feedback_events ?? '—'"></span>
         <span class="text-xs text-gray-500 font-sans mt-2" x-text="`${health.divergence_records_24h ?? 0} divergence records today`"></span>
       </div>
 
-      <div class="bg-white p-5 flex flex-col gap-1">
+      <div class="bg-white p-4 sm:p-5 flex flex-col gap-1 text-center sm:text-left">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Keywords Extracted (24h)</span>
-        <span class="text-4xl font-serif font-black text-black" x-text="(health.keywords_24h ?? 0).toLocaleString()"></span>
-        <span class="text-xs text-green-700 font-sans mt-2 font-bold">NLTK NLP Pipeline</span>
+        <span class="text-3xl sm:text-4xl font-serif font-black text-black" x-text="(health.keywords_24h ?? 0).toLocaleString()"></span>
+        <span class="text-[10px] text-green-700 font-sans mt-2 font-bold uppercase tracking-tight">NLTK NLP Pipeline Active</span>
       </div>
 
-      <div class="bg-white p-5 flex flex-col gap-1">
+      <div class="bg-white p-4 sm:p-5 flex flex-col gap-1 text-center sm:text-left">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Affiliation Split</span>
         <div class="flex flex-col gap-1 mt-1">
           <template x-for="(count, type) in (health.channels_by_affiliation ?? {})" :key="type">
-            <div class="flex justify-between items-center">
+            <div class="flex justify-between items-center px-4 sm:px-0">
               <span class="text-xs font-semibold font-sans capitalize" x-text="type"></span>
               <span class="text-sm font-black font-serif" x-text="count"></span>
             </div>
@@ -80,24 +84,26 @@
         </div>
       </div>
 
-      <div class="bg-white p-5 flex flex-col gap-1">
+      <div class="bg-white p-4 sm:p-5 flex flex-col gap-1 text-center sm:text-left">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Last API Snapshot</span>
-        <span class="text-base font-bold font-mono text-black mt-1" x-text="fmtDate(health.last_poll) || 'Never'"></span>
-        <span class="text-[10px] text-gray-400 font-sans mt-1">Most recent YouTube API write</span>
+        <span class="text-sm sm:text-base font-bold font-mono text-black mt-1" x-text="fmtDate(health.last_poll) || 'Never'"></span>
+        <span class="text-[10px] text-gray-400 font-sans mt-1">YouTube Data API Write Control</span>
       </div>
 
-      <div class="bg-white p-5 flex flex-col gap-1">
+      <div class="bg-white p-4 sm:p-5 flex flex-col gap-1 text-center sm:text-left">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Last RSS Ingestion</span>
-        <span class="text-base font-bold font-mono text-black mt-1" x-text="fmtDate(health.last_rss) || 'Never'"></span>
-        <span class="text-[10px] text-gray-400 font-sans mt-1">Most recent video discovered via RSS</span>
+        <span class="text-sm sm:text-base font-bold font-mono text-black mt-1" x-text="fmtDate(health.last_rss) || 'Never'"></span>
+        <span class="text-[10px] text-gray-400 font-sans mt-1">Discovery via Polling RSS</span>
       </div>
 
     </div>
 
     <!-- Sparkline: hourly snapshot volume -->
-    <div class="mt-4 bg-white border border-gray-300 p-5">
+    <div class="mt-4 bg-white border border-gray-300 p-4 sm:p-5">
       <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans mb-3">Snapshot Volume — Last 24 Hours</p>
-      <canvas id="sparklineChart" height="80"></canvas>
+      <div class="h-[120px] sm:h-[150px] w-full">
+        <canvas id="sparklineChart"></canvas>
+      </div>
     </div>
   </section>
 
@@ -106,69 +112,66 @@
   <!-- ══════════════════════════════════════════════════════════ -->
 
   <section>
-    <h2 class="text-xs font-bold uppercase tracking-widest text-gray-500 font-sans mb-4 border-b border-gray-200 pb-2">Register New Channel</h2>
+    <h2 class="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-gray-500 font-sans mb-4 border-b border-gray-200 pb-2">Register New Channel</h2>
 
-    <div class="bg-white border border-gray-300 p-6">
-      <form @submit.prevent="submitChannel()" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+    <div class="bg-white border border-gray-300 p-4 sm:p-6">
+      <form @submit.prevent="submitChannel()" class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5 sm:gap-y-6">
 
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">YouTube Channel ID *</label>
-          <input type="text" x-model="form.channel_id" required placeholder="e.g. UCXIJgqnII2ZOINSWNOGFThA"
-                 class="border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:border-black transition">
-          <p class="text-[10px] text-gray-400 font-sans">Find via: youtube.com/channel/<strong>ID</strong> or channel page → About</p>
+        <div class="flex flex-col gap-2">
+            <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">YouTube Channel ID *</label>
+            <input type="text" x-model="form.channel_id" required placeholder="UC..."
+                   class="border border-gray-300 px-3 py-3 text-base sm:text-sm font-mono focus:outline-none focus:border-black transition">
+            <p class="text-[10px] text-gray-400 font-sans">Find in channel URL or 'About' page</p>
         </div>
 
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Display Name *</label>
-          <input type="text" x-model="form.channel_name" required placeholder="e.g. Tucker Carlson"
-                 class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition">
+        <div class="flex flex-col gap-2">
+            <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Display Name *</label>
+            <input type="text" x-model="form.channel_name" required placeholder="Tucker Carlson"
+                   class="border border-gray-300 px-3 py-3 text-base sm:text-sm font-sans focus:outline-none focus:border-black transition">
         </div>
 
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Tier</label>
-          <select x-model="form.tier" class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition bg-white">
-            <option value="1">Tier 1 — Major Network</option>
-            <option value="2">Tier 2 — Prominent Commentator</option>
-            <option value="3" selected>Tier 3 — Independent Creator</option>
-          </select>
+        <div class="flex flex-col gap-2">
+            <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Tier</label>
+            <select x-model="form.tier" class="border border-gray-300 px-3 py-3 text-base sm:text-sm font-sans focus:outline-none focus:border-black transition bg-white min-h-[44px]">
+                <option value="1">Tier 1 — Major Network</option>
+                <option value="2">Tier 2 — Commentator</option>
+                <option value="3" selected>Tier 3 — Independent</option>
+            </select>
         </div>
 
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Category</label>
-          <select x-model="form.category" class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition bg-white">
-            <option value="commentator" selected>Commentator</option>
-            <option value="network">Network</option>
-            <option value="news">News</option>
-            <option value="culture">Culture</option>
-            <option value="economics">Economics</option>
-            <option value="faith">Faith</option>
-            <option value="satire">Satire</option>
-          </select>
+        <div class="flex flex-col gap-2">
+            <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Category</label>
+            <select x-model="form.category" class="border border-gray-300 px-3 py-3 text-base sm:text-sm font-sans focus:outline-none focus:border-black transition bg-white min-h-[44px]">
+                <option value="commentator" selected>Commentator</option>
+                <option value="network">Network</option>
+                <option value="news">News</option>
+                <option value="culture">Culture</option>
+            </select>
         </div>
 
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Affiliation Type</label>
-          <select x-model="form.affiliation_type" class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition bg-white">
-            <option value="independent" selected>Independent / Grassroots</option>
-            <option value="affiliated">Affiliated / Institutional</option>
-          </select>
+        <div class="flex flex-col gap-2">
+            <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Affiliation Type</label>
+            <select x-model="form.affiliation_type" class="border border-gray-300 px-3 py-3 text-base sm:text-sm font-sans focus:outline-none focus:border-black transition bg-white min-h-[44px]">
+                <option value="independent" selected>Independent / Grassroots</option>
+                <option value="affiliated">Affiliated / Institutional</option>
+            </select>
         </div>
 
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Affiliated Organisation (optional)</label>
-          <input type="text" x-model="form.affiliation_org" placeholder="e.g. Fox News Media"
-                 class="border border-gray-300 px-3 py-2 text-sm font-sans focus:outline-none focus:border-black transition">
+        <div class="flex flex-col gap-2">
+            <label class="text-[11px] font-bold uppercase tracking-wider text-gray-500 font-sans">Affiliated Org</label>
+            <input type="text" x-model="form.affiliation_org" placeholder="e.g. Fox"
+                   class="border border-gray-300 px-3 py-3 text-base sm:text-sm font-sans focus:outline-none focus:border-black transition">
         </div>
 
-        <div class="md:col-span-2 flex items-center gap-4 pt-2">
-          <button type="submit"
-                  class="bg-black text-white font-bold text-sm px-6 py-2.5 font-sans hover:bg-econred transition"
-                  :disabled="submitting"
-                  x-text="submitting ? 'Registering…' : '+ Add to Monitoring List'">
-          </button>
-          <span class="text-sm font-sans font-semibold transition"
-                :class="formMsg.ok ? 'text-green-700' : 'text-econred'"
-                x-show="formMsg.text" x-text="formMsg.text"></span>
+        <div class="sm:col-span-2 flex flex-col sm:flex-row items-center gap-4 pt-2">
+            <button type="submit"
+                    class="w-full sm:w-auto bg-black text-white font-bold text-sm px-8 py-3.5 sm:py-2.5 font-sans hover:bg-econred transition min-h-[44px]"
+                    :disabled="submitting"
+                    x-text="submitting ? 'Registering…' : '+ Add Channel'">
+            </button>
+            <span class="text-xs sm:text-sm font-sans font-semibold text-center"
+                  :class="formMsg.ok ? 'text-green-700' : 'text-econred'"
+                  x-show="formMsg.text" x-text="formMsg.text"></span>
         </div>
       </form>
     </div>
@@ -179,87 +182,89 @@
   <!-- ══════════════════════════════════════════════════════════ -->
 
   <section>
-    <div class="flex justify-between items-center mb-4 border-b border-gray-200 pb-2">
-      <h2 class="text-xs font-bold uppercase tracking-widest text-gray-500 font-sans">Active Monitoring Directory</h2>
-      <div class="relative w-56">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border-b border-gray-200 pb-2">
+      <h2 class="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-gray-500 font-sans">Active Monitoring Directory</h2>
+      <div class="relative w-full sm:w-56">
         <input type="text" x-model="search" placeholder="Filter channels…"
-               class="w-full border border-gray-300 pl-8 pr-3 py-1.5 text-xs font-sans focus:outline-none focus:border-black transition">
-        <span class="absolute left-2.5 top-2 text-gray-400 text-xs">🔍</span>
+               class="w-full border border-gray-300 pl-8 pr-3 py-2 sm:py-1.5 text-base sm:text-xs font-sans focus:outline-none focus:border-black transition">
+        <span class="absolute left-2.5 top-2.5 sm:top-2 text-gray-400 text-xs">🔍</span>
       </div>
     </div>
 
-    <div class="bg-white border border-gray-300 overflow-hidden">
-      <table class="w-full text-left border-collapse text-sm">
-        <thead>
-          <tr class="bg-gray-100 border-b-[2px] border-black text-[10px] font-bold uppercase tracking-widest text-gray-600 font-sans">
-            <th class="px-4 py-3">Channel</th>
-            <th class="px-4 py-3">Tier</th>
-            <th class="px-4 py-3">Category</th>
-            <th class="px-4 py-3">Affiliation</th>
-            <th class="px-4 py-3">Subscribers</th>
-            <th class="px-4 py-3">Last Polled</th>
-            <th class="px-4 py-3 text-right">Action</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200">
-          <template x-for="ch in filteredChannels" :key="ch.channel_id">
-            <tr class="hover:bg-gray-50 transition group">
-              <td class="px-4 py-3 font-bold text-black border-l-4 border-transparent group-hover:border-econred transition">
-                <div x-text="ch.channel_name"></div>
-                <div class="text-[10px] font-mono text-gray-400 mt-0.5" x-text="ch.channel_id"></div>
-              </td>
-              <td class="px-4 py-3">
-                <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 border"
-                      :class="{
-                        'bg-black text-white border-black': ch.tier == 1,
-                        'bg-gray-200 text-black border-gray-400': ch.tier == 2,
-                        'bg-white text-econred border-econred': ch.tier == 3
-                      }"
-                      x-text="`T${ch.tier}`"></span>
-              </td>
-              <td class="px-4 py-3 capitalize text-gray-700 font-sans" x-text="ch.category"></td>
-              <td class="px-4 py-3">
-                <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5"
-                      :class="ch.affiliation_type === 'affiliated' ? 'bg-econblue text-white' : 'bg-gray-100 text-gray-700'"
-                      x-text="ch.affiliation_type === 'affiliated' ? 'Institutional' : 'Independent'"></span>
-              </td>
-              <td class="px-4 py-3 font-mono font-bold text-black" x-text="fmtNum(ch.subscriber_count)"></td>
-              <td class="px-4 py-3 text-xs font-mono text-gray-400" x-text="fmtDate(ch.last_updated)"></td>
-              <td class="px-4 py-3 text-right">
-                <button @click="confirmRemove(ch)"
-                        class="text-[11px] font-bold uppercase tracking-widest border border-gray-300 px-3 py-1 font-sans
-                               hover:bg-econred hover:text-white hover:border-econred transition">
-                  Remove
-                </button>
-              </td>
+    <div class="bg-white border border-gray-300 overflow-hidden -mx-4 sm:mx-0">
+      <div class="overflow-x-auto px-4 sm:px-0">
+        <table class="w-full text-left border-collapse text-sm min-w-[800px] sm:min-w-0">
+          <thead>
+            <tr class="bg-gray-100 border-b-[2px] border-black text-[10px] font-bold uppercase tracking-widest text-gray-600 font-sans">
+              <th class="px-4 py-3">Channel</th>
+              <th class="px-4 py-3">Tier</th>
+              <th class="px-4 py-3">Category</th>
+              <th class="px-4 py-3">Affiliation</th>
+              <th class="px-4 py-3">Subscribers</th>
+              <th class="px-4 py-3">Last Polled</th>
+              <th class="px-4 py-3 text-right">Action</th>
             </tr>
-          </template>
-          <tr x-show="filteredChannels.length === 0 && !loading">
-            <td colspan="7" class="py-12 text-center text-gray-400 italic font-serif text-sm">No channels match the filter.</td>
-          </tr>
-          <tr x-show="loading">
-            <td colspan="7" class="py-12 text-center text-gray-400 font-sans text-xs">Loading directory…</td>
-          </tr>
-        </tbody>
-      </table>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <template x-for="ch in filteredChannels" :key="ch.channel_id">
+              <tr class="hover:bg-gray-50 transition group">
+                <td class="px-4 py-3 font-bold text-black border-l-4 border-transparent group-hover:border-econred transition">
+                  <div x-text="ch.channel_name"></div>
+                  <div class="text-[10px] font-mono text-gray-400 mt-0.5" x-text="ch.channel_id"></div>
+                </td>
+                <td class="px-4 py-3">
+                  <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 border"
+                        :class="{
+                          'bg-black text-white border-black': ch.tier == 1,
+                          'bg-gray-200 text-black border-gray-400': ch.tier == 2,
+                          'bg-white text-econred border-econred': ch.tier == 3
+                        }"
+                        x-text="`T${ch.tier}`"></span>
+                </td>
+                <td class="px-4 py-3 capitalize text-gray-700 font-sans text-xs" x-text="ch.category"></td>
+                <td class="px-4 py-3">
+                  <span class="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-2 py-0.5"
+                        :class="ch.affiliation_type === 'affiliated' ? 'bg-econblue text-white' : 'bg-gray-100 text-gray-700'"
+                        x-text="ch.affiliation_type === 'affiliated' ? 'Institutional' : 'Independent'"></span>
+                </td>
+                <td class="px-4 py-3 font-mono font-bold text-black text-xs" x-text="fmtNum(ch.subscriber_count)"></td>
+                <td class="px-4 py-3 text-[10px] sm:text-xs font-mono text-gray-400" x-text="fmtDate(ch.last_updated)"></td>
+                <td class="px-4 py-3 text-right">
+                  <button @click="confirmRemove(ch)"
+                          class="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest border border-gray-300 px-3 py-1.5 sm:py-1 font-sans
+                                 hover:bg-econred hover:text-white hover:border-econred transition min-h-[32px]">
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="filteredChannels.length === 0 && !loading">
+              <td colspan="7" class="py-12 text-center text-gray-400 italic font-serif text-sm">No channels match the filter.</td>
+            </tr>
+            <tr x-show="loading">
+              <td colspan="7" class="py-12 text-center text-gray-400 font-sans text-xs">Loading directory…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
 
   <!-- Confirm Delete Modal -->
   <div x-show="toDelete" x-cloak
-       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
        @click.self="toDelete = null">
-    <div class="bg-white border border-gray-300 shadow-2xl p-8 max-w-md w-full mx-4">
+    <div class="bg-white border border-gray-300 shadow-2xl p-6 sm:p-8 max-w-md w-full">
       <h3 class="font-serif text-xl font-bold text-black mb-2">Confirm Removal</h3>
       <p class="text-sm text-gray-600 font-sans mb-1">
-        You are about to remove <strong x-text="toDelete?.channel_name"></strong> from active monitoring.
+        You are about to remove <strong x-text="toDelete?.channel_name"></strong>.
       </p>
-      <p class="text-xs text-gray-400 font-sans mb-6">Historical data (videos, snapshots) will be preserved for baseline analysis.</p>
-      <div class="flex gap-3">
-        <button @click="executeRemove()" class="bg-econred text-white font-bold text-sm px-5 py-2.5 font-sans hover:opacity-90 transition">
+      <p class="text-xs text-gray-400 font-sans mb-8">Historical data snapshots will be preserved.</p>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <button @click="executeRemove()" class="order-1 sm:order-none bg-econred text-white font-bold text-sm px-6 py-3.5 sm:py-2.5 font-sans hover:opacity-90 transition min-h-[44px]">
           Confirm Remove
         </button>
-        <button @click="toDelete = null" class="border border-gray-300 text-black font-bold text-sm px-5 py-2.5 font-sans hover:bg-gray-100 transition">
+        <button @click="toDelete = null" class="border border-gray-300 text-black font-bold text-sm px-6 py-3.5 sm:py-2.5 font-sans hover:bg-gray-100 transition min-h-[44px]">
           Cancel
         </button>
       </div>

@@ -7,16 +7,15 @@ import feedparser
 import logging
 from datetime import datetime
 from email.utils import parsedate_to_datetime
-from db import get_connection
+from db import get_connection, get_cursor
 import keyword_extractor
 
 def _parse_date(raw_date_str):
-    """Safely parse an RSS date string to SQLite-compatible ISO format."""
+    """Safely parse an RSS date string to PostgreSQL-compatible ISO format."""
     if not raw_date_str:
         return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     try:
         dt = parsedate_to_datetime(raw_date_str)
-        # Convert to UTC-naive ISO string for SQLite
         return dt.strftime('%Y-%m-%d %H:%M:%S')
     except Exception:
         return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -24,9 +23,10 @@ def _parse_date(raw_date_str):
 def run():
     """Runs the RSS polling process for all channels."""
     conn = get_connection()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     cursor.execute("SELECT channel_id, channel_name FROM channels")
     channels = cursor.fetchall()
+    cursor.close()
     conn.close()
 
     for channel in channels:
@@ -40,7 +40,7 @@ def run():
 
             # Open a fresh connection per channel to prevent cursor bleed
             ch_conn = get_connection()
-            ch_cursor = ch_conn.cursor()
+            ch_cursor = get_cursor(ch_conn)
 
             for entry in feed.entries:
                 video_id = getattr(entry, 'yt_videoid', None)
@@ -52,13 +52,13 @@ def run():
                 published_at = _parse_date(entry.get('published', ''))
 
                 # Skip if already known
-                ch_cursor.execute("SELECT 1 FROM videos WHERE video_id = ?", (video_id,))
+                ch_cursor.execute("SELECT 1 FROM videos WHERE video_id = %s", (video_id,))
                 if ch_cursor.fetchone():
                     continue
 
                 ch_cursor.execute("""
                     INSERT INTO videos (video_id, channel_id, title, description, published_at, tags)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """, (video_id, channel_id, title, description, published_at, "[]"))
                 ch_conn.commit()
 
@@ -66,6 +66,7 @@ def run():
                 keyword_extractor.extract_and_store(video_id, channel_id, title, description)
                 new_videos_count += 1
 
+            ch_cursor.close()
             ch_conn.close()
             logging.info(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {channel_name} — {new_videos_count} new videos found")
 

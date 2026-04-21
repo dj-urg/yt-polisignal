@@ -8,7 +8,7 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import string
 import logging
-from db import get_connection
+from db import get_connection, get_cursor
 
 EXTRA_STOPWORDS = {"watch", "video", "new", "today", "breaking",
                    "live", "show", "episode", "week", "year", "says",
@@ -31,9 +31,9 @@ def clean_text(text):
 def extract_and_store(video_id, channel_id, title, description):
     """Tokenize video fields and store into keywords database."""
     conn = get_connection()
-    cursor = conn.cursor()
+    cursor = get_cursor(conn)
     
-    combined_text = title + " " + description[:300]
+    combined_text = title + " " + (description[:300] if description else "")
     tokens = clean_text(combined_text)
     
     # Store Unigrams
@@ -48,17 +48,17 @@ def extract_and_store(video_id, channel_id, title, description):
             extracted_keywords.add(f"{bigram[0]} {bigram[1]}")
             
     try:
-        # Currently, the specification asks for frequency > 1 across corpus that day. 
         # For simplicity directly insert keywords. We will filter frequency=1 in the dashboard/DB queries.
         for kw in extracted_keywords:
             cursor.execute("""
                 INSERT INTO keywords (keyword, video_id, channel_id) 
-                VALUES (?, ?, ?)
+                VALUES (%s, %s, %s)
             """, (kw, video_id, channel_id))
         conn.commit()
     except Exception as e:
         logging.error(f"Error inserting keywords for {video_id}: {e}")
     finally:
+        cursor.close()
         conn.close()
 
 def run():

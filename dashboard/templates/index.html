@@ -37,22 +37,22 @@
   <div class="md:col-span-8 space-y-10 pr-0 md:pr-8 md:border-r border-gray-300">
 
     <!-- Summary Stats Strip -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-300 border border-gray-300">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-gray-300 border border-gray-300">
       <div class="bg-white p-4 flex flex-col gap-1">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Channels Tracked</span>
-        <span class="text-4xl font-serif font-black text-black" x-text="summary.total_channels ?? '—'"></span>
+        <span class="text-3xl sm:text-4xl font-serif font-black text-black" x-text="summary.total_channels ?? '—'"></span>
       </div>
       <div class="bg-white p-4 flex flex-col gap-1">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Videos (24h)</span>
-        <span class="text-4xl font-serif font-black text-black" x-text="summary.videos_last_24h ?? '—'"></span>
+        <span class="text-3xl sm:text-4xl font-serif font-black text-black" x-text="summary.videos_last_24h ?? '—'"></span>
       </div>
       <div class="bg-white p-4 flex flex-col gap-1">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Converging Keywords</span>
-        <span class="text-4xl font-serif font-black text-black" x-text="summary.top_converging_keywords?.length ?? '—'"></span>
+        <span class="text-3xl sm:text-4xl font-serif font-black text-black" x-text="summary.top_converging_keywords?.length ?? '—'"></span>
       </div>
       <div class="bg-white p-4 flex flex-col gap-1">
         <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">Surge Alerts</span>
-        <span class="text-4xl font-serif font-black text-black"
+        <span class="text-3xl sm:text-4xl font-serif font-black text-black"
               :class="(summary.surge_alerts?.length ?? 0) > 0 ? 'text-econred' : ''"
               x-text="summary.surge_alerts?.length ?? '0'"></span>
       </div>
@@ -60,13 +60,13 @@
 
     <!-- Hottest Videos -->
     <div>
-      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
+      <h2 class="text-xl sm:text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
         Fastest Growing Videos
       </h2>
       <div class="space-y-3">
         <template x-for="(vid, i) in (summary.hottest_videos ?? []).slice(0,8)" :key="vid.video_id">
           <div class="flex gap-4 items-start border-b border-gray-100 pb-3">
-            <span class="font-serif font-black text-gray-300 text-2xl w-8 pt-0.5" x-text="i+1"></span>
+            <span class="font-serif font-black text-gray-300 text-xl sm:text-2xl w-8 pt-0.5" x-text="i+1"></span>
             <div class="flex-1">
               <div class="font-serif font-bold text-black text-sm leading-tight mb-1" x-text="vid.title"></div>
               <div class="flex items-center gap-3 text-[11px] font-sans text-gray-500 flex-wrap">
@@ -86,8 +86,8 @@
 
     <!-- Top Converging Keywords -->
     <div>
-      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
-        Converging Keywords <span class="text-xs font-sans font-normal text-gray-500 uppercase">last 24h · across 3+ channels</span>
+      <h2 class="text-xl sm:text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
+        Converging Keywords <span class="text-[10px] sm:text-xs font-sans font-normal text-gray-500 uppercase">last 24h · across 3+ channels</span>
       </h2>
       <div class="flex flex-wrap gap-2">
         <template x-for="kw in (summary.top_converging_keywords ?? []).slice(0,20)" :key="kw.keyword">
@@ -104,33 +104,35 @@
 
     <!-- Channel Activity Table -->
     <div>
-      <h2 class="text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
-        Channel Activity <span class="text-xs font-sans font-normal text-gray-500 uppercase">last 24h</span>
+      <h2 class="text-xl sm:text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
+        Channel Activity <span class="text-[10px] sm:text-xs font-sans font-normal text-gray-500 uppercase">last 24h</span>
       </h2>
-      <table class="w-full text-sm border-collapse">
-        <thead>
-          <tr class="border-b-[2px] border-black text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">
-            <th class="text-left py-2">Channel</th>
-            <th class="text-right py-2">Tier</th>
-            <th class="text-right py-2">Videos Today</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template x-for="ch in sortedActivity.slice(0,15)" :key="ch.channel_name">
-            <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
-              <td class="py-2 font-serif font-bold text-black" x-text="ch.channel_name"></td>
-              <td class="py-2 text-right">
-                <span class="text-[10px] font-bold border px-1.5 py-0.5"
-                      :class="ch.tier==1?'bg-black text-white border-black':ch.tier==2?'bg-gray-200 border-gray-400':'border-econred text-econred'"
-                      x-text="'T' + ch.tier"></span>
-              </td>
-              <td class="py-2 text-right font-mono font-bold"
-                  :class="ch.videos_today > 0 ? 'text-black' : 'text-gray-300'"
-                  x-text="ch.videos_today"></td>
+      <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <table class="w-full text-sm border-collapse min-w-[500px] sm:min-w-0">
+          <thead>
+            <tr class="border-b-[2px] border-black text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">
+              <th class="text-left py-2">Channel</th>
+              <th class="text-right py-2">Tier</th>
+              <th class="text-right py-2">Videos Today</th>
             </tr>
-          </template>
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            <template x-for="ch in sortedActivity.slice(0,15)" :key="ch.channel_name">
+              <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+                <td class="py-2 font-serif font-bold text-black" x-text="ch.channel_name"></td>
+                <td class="py-2 text-right">
+                  <span class="text-[10px] font-bold border px-1.5 py-0.5"
+                        :class="ch.tier==1?'bg-black text-white border-black':ch.tier==2?'bg-gray-200 border-gray-400':'border-econred text-econred'"
+                        x-text="'T' + ch.tier"></span>
+                </td>
+                <td class="py-2 text-right font-mono font-bold"
+                    :class="ch.videos_today > 0 ? 'text-black' : 'text-gray-300'"
+                    x-text="ch.videos_today"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
     </div>
 
   </div>
