@@ -220,10 +220,13 @@ document.addEventListener('alpine:init', () => {
       await Promise.all([this.fetchSummary(), this.fetchPulse(), this.fetchBriefing(), this.fetchCalibration()]);
       
       // ResizeObserver to handle canvas re-renders
-      const resizeObserver = new ResizeObserver(() => {
-        if (this.pulse_data.current) this.renderPulseGauge();
+      this.$nextTick(() => {
+        const el = document.getElementById('pulseGauge');
+        if (el && el.parentElement) {
+          const resizeObserver = new ResizeObserver(() => this.renderPulseGauge());
+          resizeObserver.observe(el.parentElement);
+        }
       });
-      resizeObserver.observe(document.getElementById('pulseGauge').parentElement);
 
       setInterval(() => this.fetchSummary(), 5 * 60 * 1000);
       setInterval(() => this.fetchPulse(),   5 * 60 * 1000);

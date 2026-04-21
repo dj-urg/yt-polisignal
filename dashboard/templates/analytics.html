@@ -288,15 +288,20 @@ document.addEventListener('alpine:init', () => {
         this.fetchConvergence()
       ]);
 
-      // ResizeObserver for dynamic visualizations
-      const resizeObserver = new ResizeObserver(() => {
-        if (this.feedback_data.most_feedback_responsive_channels) this.renderFeedbackChart();
-        if (this.stability_data.history) this.renderStabilityChart();
-        if (this._lastConvergenceData) this.renderD3Network(this._lastConvergenceData);
+      this.$nextTick(() => {
+        const resizeObserver = new ResizeObserver(() => {
+          this.renderCharts();
+        });
+        
+        const fEl = document.getElementById('feedbackChart');
+        if (fEl && fEl.parentElement) resizeObserver.observe(fEl.parentElement);
+        
+        const sEl = document.getElementById('stabilityChart');
+        if (sEl && sEl.parentElement) resizeObserver.observe(sEl.parentElement);
+        
+        const d3El = document.getElementById('d3-container');
+        if (d3El) resizeObserver.observe(d3El);
       });
-      resizeObserver.observe(document.getElementById('feedbackChart').parentElement);
-      resizeObserver.observe(document.getElementById('stabilityChart').parentElement);
-      resizeObserver.observe(document.getElementById('d3-container'));
 
       setInterval(() => this.fetchHeat(),        6 * 60 * 1000);
       setInterval(() => this.fetchDivergence(),  9 * 60 * 1000);

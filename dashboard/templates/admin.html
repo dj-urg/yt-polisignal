@@ -299,11 +299,15 @@ document.addEventListener('alpine:init', () => {
       await this.refreshHealth();
       await this.loadChannels();
       
-      // ResizeObserver for sparkline
-      const resizeObserver = new ResizeObserver(() => {
-        if (this.health.snapshot_sparkline) this.renderSparkline();
+      this.$nextTick(() => {
+        const el = document.getElementById('sparklineChart');
+        if (el && el.parentElement) {
+          const resizeObserver = new ResizeObserver(() => {
+            if (this.health.snapshot_sparkline) this.renderSparkline();
+          });
+          resizeObserver.observe(el.parentElement);
+        }
       });
-      resizeObserver.observe(document.getElementById('sparklineChart').parentElement);
 
       // Auto-refresh every 60s
       setInterval(() => this.refreshHealth(), 60000);
