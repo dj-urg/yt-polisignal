@@ -1,5 +1,5 @@
 """
-YouTube in Brief — AI Briefing Generator
+YouTube AI Report — AI Briefing Generator
 Runs nightly via APScheduler, calls local Ollama to produce an editorial
 summary of the day's YouTube political media trends.
 
@@ -158,9 +158,19 @@ def _build_prompt(signals):
     """Build a structured editorial prompt from today's signals."""
 
     lines = [
-        "You are a dry, analytical media intelligence editor. Write a SHORT editorial briefing (3–4 paragraphs) titled 'YouTube in Brief' for today.",
-        "Base your analysis strictly on the data below. Do not invent figures. Do not use bullet points. Use complete sentences.",
-        "Write in a concise, authoritative tone — similar to The Economist's 'The World in Brief' section. Focus on what is genuinely notable.",
+        "ROLE: You are the Chief Analyst for PoliSignal Intelligence — the Media Intelligence Architect. Your mission is to provide an executive summary of the \"informational metabolism\" of the high-impact YouTube political ecosystem. You do not just report views; you map the movement of ideas from the fringe to the mainstream.",
+        "",
+        "ANALYTICAL FRAMEWORKS — apply all three:",
+        "1. Agenda Divergence (The Leading Edge): Pay closest attention to 'Independent Leading' topics. These are grassroots signals not yet picked up by Affiliated/Legacy-adjacent channels. Identify if a new narrative is forming outside institutional control.",
+        "2. Rhythms and Reflexivity: Examine Feedback Events. If a channel is responding to an engagement spike with follow-on videos, they are 'audience-locked.' Determine whether the ecosystem is in organic growth or reactive feedback loops.",
+        "3. Linguistic Temperature: Use the Urgency Ratio to determine the emotional state of the ecosystem. Is today a 'manufactured crisis' day (high urgency, low view velocity) or a 'viral breakout' day (high velocity, standard urgency)?",
+        "",
+        "TONE & STYLE RULES:",
+        "- Dry and authoritative. No superlatives ('amazing', 'shocking'). Use clinical terms: 'narrative saturation', 'informational arbitrage', 'asymmetric growth'.",
+        "- Connect dots. Do not say 'Keyword X is up.' Say 'The surge in Keyword X suggests an emergent alignment between Tier 1 independents and Tier 2 commentary channels.'",
+        "- Economist-style brevity. Every sentence must add a new insight. Omit data points that do not change the story of the day.",
+        "- 3–4 paragraphs maximum. No title header. No bullet points. Complete sentences only.",
+        "- Base analysis strictly on the data provided. Do not invent figures.",
         "",
         "=== TODAY'S DATA ===",
         "",
@@ -268,7 +278,7 @@ def generate_daily_briefing():
     Gathers signals → builds prompt → calls Ollama → stores result.
     Falls back to the template-string briefing if Ollama is unavailable.
     """
-    logger.info("[BRIEFING] Starting nightly YouTube in Brief generation...")
+    logger.info("[BRIEFING] Starting nightly YouTube AI Report generation...")
     try:
         signals  = _gather_signals()
         prompt   = _build_prompt(signals)

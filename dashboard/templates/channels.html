@@ -1,9 +1,8 @@
 {% extends "base.html" %}
 
-{% block body_attrs %}x-data="channelsData()" x-init="init()"{% endblock %}
-
 {% block content %}
-<main class="max-w-7xl mx-auto px-4 py-6 sm:py-8 space-y-6">
+<main class="max-w-7xl mx-auto px-4 py-6 sm:py-8 space-y-6"
+      x-data="channelsData()">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b-[2px] border-black pb-4">
         <div>
             <h1 class="text-2xl sm:text-3xl font-serif font-black text-black tracking-tight" style="letter-spacing: -0.02em;">Channel Index</h1>
@@ -59,7 +58,18 @@
                             <td class="px-3 sm:px-5 py-4 text-xs font-mono text-gray-400" x-text="formatDate(ch.last_updated)"></td>
                         </tr>
                     </template>
-                    <tr x-show="filteredChannels.length === 0">
+                    <tr x-show="!channels_loaded">
+                        <td colspan="5" class="py-8">
+                          <div class="animate-pulse space-y-3 px-5">
+                            <div class="h-4 bg-gray-200 rounded w-full"></div>
+                            <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                            <div class="h-4 bg-gray-200 rounded w-4/6"></div>
+                            <div class="h-4 bg-gray-200 rounded w-full"></div>
+                            <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                          </div>
+                        </td>
+                    </tr>
+                    <tr x-show="channels_loaded && filteredChannels.length === 0">
                         <td colspan="5" class="py-12 text-center text-gray-500 font-serif italic">No entities match the given parameters.</td>
                     </tr>
                 </tbody>
@@ -74,43 +84,44 @@
 document.addEventListener('alpine:init', () => {
     Alpine.data('channelsData', () => ({
         channels: [],
+        channels_loaded: false,
         searchQuery: '',
         sortCol: 'channel_name',
         sortAsc: true,
-        
+
         async init() {
             try {
                 const res = await fetch('/api/channels_list');
                 this.channels = await res.json();
             } catch (e) {
                 console.error("Failed to load channel data", e);
+            } finally {
+                this.channels_loaded = true;
             }
         },
-        
+
         get filteredChannels() {
-            let res = this.channels;
+            let res = [...this.channels];
             if (this.searchQuery) {
                 const q = this.searchQuery.toLowerCase();
-                res = res.filter(c => c.channel_name.toLowerCase().includes(q) || c.category.toLowerCase().includes(q));
+                res = res.filter(c => (c.channel_name || '').toLowerCase().includes(q) || (c.category || '').toLowerCase().includes(q));
             }
             res.sort((a, b) => {
                 let valA = a[this.sortCol];
                 let valB = b[this.sortCol];
-                if(valA === null) valA = '';
-                if(valB === null) valB = '';
-                
+                if (valA === null) valA = '';
+                if (valB === null) valB = '';
                 if (typeof valA === 'string') valA = valA.toLowerCase();
                 if (typeof valB === 'string') valB = valB.toLowerCase();
-                
                 if (valA < valB) return this.sortAsc ? -1 : 1;
                 if (valA > valB) return this.sortAsc ? 1 : -1;
                 return 0;
             });
             return res;
         },
-        
+
         sortBy(col) {
-            if(this.sortCol === col) {
+            if (this.sortCol === col) {
                 this.sortAsc = !this.sortAsc;
             } else {
                 this.sortCol = col;
@@ -119,18 +130,18 @@ document.addEventListener('alpine:init', () => {
         },
 
         formatNumber(num) {
-            if(!num) return "Unknown";
+            if (!num) return "Unknown";
             num = Math.round(num);
             if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
             if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
             return num.toString();
         },
-        
+
         formatDate(dateStr) {
-            if(!dateStr) return "Never";
+            if (!dateStr) return "Never";
             const safeDate = dateStr.replace(' ', 'T');
             const d = new Date(safeDate + "Z");
-            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
         }
     }));
 });

@@ -4,10 +4,13 @@ Flask Application for YT Temperature Dashboard
 
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import psycopg2
+from psycopg2 import pool as pg_pool
 from psycopg2.extras import RealDictCursor
 import datetime
 import os
 import functools
+import threading
+import time
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -29,16 +32,73 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
+_db_pool = None
+_pool_lock = threading.Lock()
+
+def _init_pool():
+    global _db_pool
+    with _pool_lock:
+        if _db_pool is None:
+            if not DATABASE_URL:
+                raise ValueError("DATABASE_URL environment variable is not set.")
+            _db_pool = pg_pool.ThreadedConnectionPool(2, 10, DATABASE_URL)
+
 def get_db():
-    """Returns a PostgreSQL connection with RealDictCursor."""
-    if not DATABASE_URL:
-        raise ValueError("DATABASE_URL environment variable is not set.")
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+    if _db_pool is None:
+        _init_pool()
+    return _db_pool.getconn()
+
+def release_db(conn):
+    if _db_pool and conn:
+        try:
+            if conn.status != psycopg2.extensions.STATUS_READY:
+                conn.rollback()
+        except Exception:
+            pass
+        _db_pool.putconn(conn)
 
 def get_cursor(conn):
-    """Returns a cursor with RealDictCursor."""
     return conn.cursor(cursor_factory=RealDictCursor)
+
+
+# ── Channels cache ────────────────────────────────────────────────────────────
+_channels_cache = {"data": None, "ts": None}
+_channels_cache_lock = threading.Lock()
+CHANNELS_TTL = 300  # seconds
+
+def _refresh_channels_cache():
+    conn = get_db()
+    try:
+        cursor = get_cursor(conn)
+        cursor.execute("""
+            SELECT channel_id, channel_name, tier, category, subscriber_count, last_updated
+            FROM channels ORDER BY tier, channel_name
+        """)
+        rows = []
+        for row in cursor.fetchall():
+            d = dict(row)
+            if isinstance(d.get('last_updated'), datetime.datetime):
+                d['last_updated'] = d['last_updated'].isoformat()
+            rows.append(d)
+        cursor.close()
+        with _channels_cache_lock:
+            _channels_cache['data'] = rows
+            _channels_cache['ts'] = datetime.datetime.utcnow()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Channels cache refresh error: {e}")
+    finally:
+        release_db(conn)
+
+def _channels_cache_loop():
+    while True:
+        try:
+            _refresh_channels_cache()
+        except Exception:
+            pass
+        time.sleep(CHANNELS_TTL)
+
+threading.Thread(target=_channels_cache_loop, daemon=True).start()
 
 @app.route('/')
 def index():
@@ -58,172 +118,163 @@ def analytics():
 
 @app.route('/api/channels_list')
 def api_channels_list():
-    conn = get_db()
-    cursor = get_cursor(conn)
-    cursor.execute("""
-        SELECT channel_id, channel_name, tier, category, subscriber_count, last_updated 
-        FROM channels
-    """)
-    channels = [dict(row) for row in cursor.fetchall()]
-    cursor.close()
-    conn.close()
-    return jsonify(channels)
+    with _channels_cache_lock:
+        data = _channels_cache['data']
+        ts = _channels_cache['ts']
+    stale = ts is None or (datetime.datetime.utcnow() - ts).total_seconds() > CHANNELS_TTL
+    if data is None:
+        _refresh_channels_cache()
+        with _channels_cache_lock:
+            data = _channels_cache['data']
+    elif stale:
+        threading.Thread(target=_refresh_channels_cache, daemon=True).start()
+    return jsonify(data or [])
 
 @app.route('/api/summary')
 def api_summary():
     conn = get_db()
-    cursor = get_cursor(conn)
-    
-    # 1. Total Channels
-    cursor.execute("SELECT COUNT(*) as count FROM channels")
-    total_channels = cursor.fetchone()['count']
-    
-    # 2. Videos Last 24h
-    cursor.execute("SELECT COUNT(*) as count FROM videos WHERE published_at >= NOW() - INTERVAL '24 hours'")
-    videos_last_24h = cursor.fetchone()['count']
-    
-    # 3. Top Converging Keywords (requires filtering for n_channels >= 3 within 24 hours)
-    cursor.execute("""
-        SELECT keyword, COUNT(DISTINCT channel_id) as channel_count, COUNT(video_id) as video_count
-        FROM keywords 
-        WHERE extracted_at > NOW() - INTERVAL '24 hours' 
-        GROUP BY keyword 
-        HAVING COUNT(DISTINCT channel_id) >= 3 
-        ORDER BY channel_count DESC 
-        LIMIT 15
-    """)
-    top_converging_keywords = [dict(row) for row in cursor.fetchall()]
+    try:
+        cursor = get_cursor(conn)
 
-    # 4. Hottest Videos Processing (using the memory technique for velocity calculation)
-    # Query videos and their last two snapshots in the last 72 hours
-    cursor.execute("""
-        SELECT v.video_id, v.title, v.published_at, c.channel_name, c.tier
-        FROM videos v
-        JOIN channels c ON v.channel_id = c.channel_id
-        WHERE v.published_at > NOW() - INTERVAL '72 hours'
-    """)
-    recent_videos = cursor.fetchall()
-    
-    hottest_videos = []
-    surge_alerts = []
-    
-    for v in recent_videos:
+        cursor.execute("SELECT COUNT(*) as count FROM channels")
+        total_channels = cursor.fetchone()['count']
+
+        cursor.execute("SELECT COUNT(*) as count FROM videos WHERE published_at >= NOW() - INTERVAL '24 hours'")
+        videos_last_24h = cursor.fetchone()['count']
+
         cursor.execute("""
-            SELECT view_count, polled_at FROM snapshots
-            WHERE video_id = %s
-            ORDER BY polled_at DESC
-            LIMIT 2
-        """, (v['video_id'],))
-        snaps = cursor.fetchall()
-        
-        if len(snaps) >= 2:
-            latest = snaps[0]
-            previous = snaps[1]
-            
-            # PostgreSQL returns datetime objects for TIMESTAMP
-            t1 = previous['polled_at']
-            t2 = latest['polled_at']
-            
-            hours = (t2 - t1).total_seconds() / 3600
-            diff = latest['view_count'] - previous['view_count']
-            
+            SELECT keyword, COUNT(DISTINCT channel_id) as channel_count, COUNT(video_id) as video_count
+            FROM keywords
+            WHERE extracted_at > NOW() - INTERVAL '24 hours'
+            GROUP BY keyword
+            HAVING COUNT(DISTINCT channel_id) >= 3
+            ORDER BY channel_count DESC
+            LIMIT 15
+        """)
+        top_converging_keywords = [dict(row) for row in cursor.fetchall()]
+
+        # Single query replaces the N+1 loop: fetch latest 2 snapshots per video via window function
+        cursor.execute("""
+            WITH recent_vids AS (
+                SELECT v.video_id, v.title, v.published_at, c.channel_name, c.tier
+                FROM videos v
+                JOIN channels c ON v.channel_id = c.channel_id
+                WHERE v.published_at > NOW() - INTERVAL '72 hours'
+            ),
+            ranked_snaps AS (
+                SELECT s.video_id, s.view_count, s.polled_at,
+                       ROW_NUMBER() OVER (PARTITION BY s.video_id ORDER BY s.polled_at DESC) AS rn
+                FROM snapshots s
+                WHERE s.video_id IN (SELECT video_id FROM recent_vids)
+            )
+            SELECT rv.video_id, rv.title, rv.published_at, rv.channel_name, rv.tier,
+                   s1.view_count AS latest_views, s1.polled_at AS latest_at,
+                   s2.view_count AS prev_views,   s2.polled_at AS prev_at
+            FROM recent_vids rv
+            LEFT JOIN ranked_snaps s1 ON s1.video_id = rv.video_id AND s1.rn = 1
+            LEFT JOIN ranked_snaps s2 ON s2.video_id = rv.video_id AND s2.rn = 2
+        """)
+
+        hottest_videos = []
+        surge_alerts = []
+        for row in cursor.fetchall():
+            if row['latest_views'] is None or row['prev_views'] is None:
+                continue
+            t1, t2 = row['prev_at'], row['latest_at']
+            hours = (t2 - t1).total_seconds() / 3600 if t1 and t2 else 0
+            diff = row['latest_views'] - row['prev_views']
             velocity = diff / hours if hours > 0 else 0
-            
-            vid_obj = {
-                "video_id": v['video_id'],
-                "title": v['title'],
-                "channel_name": v['channel_name'],
-                "tier": v['tier'],
-                "views": latest['view_count'],
+            obj = {
+                "video_id": row['video_id'],
+                "title": row['title'],
+                "channel_name": row['channel_name'],
+                "tier": row['tier'],
+                "views": row['latest_views'],
                 "velocity": velocity,
-                "published_at": v['published_at'].isoformat() if isinstance(v['published_at'], datetime.datetime) else v['published_at']
+                "published_at": row['published_at'].isoformat() if isinstance(row['published_at'], datetime.datetime) else row['published_at']
             }
-            hottest_videos.append(vid_obj)
-            
-            if v['tier'] == 3 and velocity > 1000: # Base threshold for surge inclusion, we filter actual 95th later if needed
-                surge_alerts.append(vid_obj)
+            hottest_videos.append(obj)
+            if row['tier'] == 3 and velocity > 1000:
+                surge_alerts.append(obj)
 
-    # Sort and slice
-    hottest_videos.sort(key=lambda x: x['velocity'], reverse=True)
-    hottest_videos = hottest_videos[:15]
-    
-    # Simplistic surge detection
-    surge_alerts.sort(key=lambda x: x['velocity'], reverse=True)
-    surge_alerts = surge_alerts[:5]
-    
-    # 5. Channel Activity
-    cursor.execute("""
-        SELECT c.channel_name, c.tier, COUNT(v.video_id) as videos_today
-        FROM channels c
-        LEFT JOIN videos v ON c.channel_id = v.channel_id AND v.published_at >= NOW() - INTERVAL '24 hours'
-        GROUP BY c.channel_id, c.channel_name, c.tier
-    """)
-    channel_activity = [dict(row) for row in cursor.fetchall()]
+        hottest_videos.sort(key=lambda x: x['velocity'], reverse=True)
+        surge_alerts.sort(key=lambda x: x['velocity'], reverse=True)
 
-    cursor.close()
-    conn.close()
+        cursor.execute("""
+            SELECT c.channel_name, c.tier, COUNT(v.video_id) as videos_today
+            FROM channels c
+            LEFT JOIN videos v ON c.channel_id = v.channel_id AND v.published_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY c.channel_id, c.channel_name, c.tier
+        """)
+        channel_activity = [dict(row) for row in cursor.fetchall()]
+        cursor.close()
 
-    return jsonify({
-        "total_channels": total_channels,
-        "videos_last_24h": videos_last_24h,
-        "top_converging_keywords": top_converging_keywords,
-        "hottest_videos": hottest_videos,
-        "channel_activity": channel_activity,
-        "surge_alerts": surge_alerts
-    })
+        return jsonify({
+            "total_channels": total_channels,
+            "videos_last_24h": videos_last_24h,
+            "top_converging_keywords": top_converging_keywords,
+            "hottest_videos": hottest_videos[:15],
+            "channel_activity": channel_activity,
+            "surge_alerts": surge_alerts[:5]
+        })
+    finally:
+        release_db(conn)
 
 @app.route('/api/pulse')
 def api_pulse():
     conn = get_db()
-    cursor = get_cursor(conn)
-    cursor.execute("SELECT * FROM ecosystem_pulse ORDER BY recorded_at DESC LIMIT 48")
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    
-    if not rows:
-        return jsonify({"current": 100, "baseline": 100, "delta_24h": 0, "history": [], "components": {}})
+    try:
+        cursor = get_cursor(conn)
+        cursor.execute("SELECT * FROM ecosystem_pulse ORDER BY recorded_at DESC LIMIT 48")
+        rows = cursor.fetchall()
+        cursor.close()
 
-    current = rows[0]
-    history = [{"recorded_at": r['recorded_at'].isoformat() if isinstance(r['recorded_at'], datetime.datetime) else r['recorded_at'], "pulse_score": r['pulse_score']} for r in rows[::-1]]
-    
-    delta_24h = 0
-    if len(rows) >= 24:
-        delta_24h = current['pulse_score'] - rows[-1]['pulse_score']
+        if not rows:
+            return jsonify({"current": 100, "baseline": 100, "delta_24h": 0, "history": [], "components": {}})
 
-    import json
-    components = json.loads(current['component_json']) if current['component_json'] else {}
+        current = rows[0]
+        history = [{"recorded_at": r['recorded_at'].isoformat() if isinstance(r['recorded_at'], datetime.datetime) else r['recorded_at'], "pulse_score": r['pulse_score']} for r in rows[::-1]]
 
-    return jsonify({
-        "current": current['pulse_score'],
-        "baseline": 100,
-        "delta_24h": delta_24h,
-        "history": history,
-        "components": components
-    })
+        delta_24h = 0
+        if len(rows) >= 24:
+            delta_24h = current['pulse_score'] - rows[-1]['pulse_score']
+
+        import json
+        components = json.loads(current['component_json']) if current['component_json'] else {}
+
+        return jsonify({
+            "current": current['pulse_score'],
+            "baseline": 100,
+            "delta_24h": delta_24h,
+            "history": history,
+            "components": components
+        })
+    finally:
+        release_db(conn)
 
 @app.route('/api/topics/velocity')
 def api_topics_velocity():
     conn = get_db()
-    cursor = get_cursor(conn)
-    
-    cursor.execute("""
-        SELECT ts.keyword, ts.mention_count as volume,
-               ((ts.mention_count - COALESCE(prev.mention_count, 0)) / GREATEST(COALESCE(prev.mention_count, 1), 1.0) * 100) as velocity,
-               ts.channel_count, tl.classification
-        FROM (SELECT keyword, MAX(id) as max_id FROM topic_snapshots GROUP BY keyword) curr_max
-        JOIN topic_snapshots ts ON curr_max.max_id = ts.id
-        LEFT JOIN (
-            SELECT keyword, MAX(id) as prev_id FROM topic_snapshots 
-            WHERE snapshot_at < NOW() - INTERVAL '6 hours' GROUP BY keyword
-        ) prev_max ON ts.keyword = prev_max.keyword
-        LEFT JOIN topic_snapshots prev ON prev_max.prev_id = prev.id
-        LEFT JOIN topic_lifespan tl ON ts.keyword = tl.keyword
-        WHERE ts.mention_count > 1
-    """)
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    try:
+        cursor = get_cursor(conn)
+        cursor.execute("""
+            SELECT ts.keyword, ts.mention_count as volume,
+                   ((ts.mention_count - COALESCE(prev.mention_count, 0)) / GREATEST(COALESCE(prev.mention_count, 1), 1.0) * 100) as velocity,
+                   ts.channel_count, tl.classification
+            FROM (SELECT keyword, MAX(id) as max_id FROM topic_snapshots GROUP BY keyword) curr_max
+            JOIN topic_snapshots ts ON curr_max.max_id = ts.id
+            LEFT JOIN (
+                SELECT keyword, MAX(id) as prev_id FROM topic_snapshots
+                WHERE snapshot_at < NOW() - INTERVAL '6 hours' GROUP BY keyword
+            ) prev_max ON ts.keyword = prev_max.keyword
+            LEFT JOIN topic_snapshots prev ON prev_max.prev_id = prev.id
+            LEFT JOIN topic_lifespan tl ON ts.keyword = tl.keyword
+            WHERE ts.mention_count > 1
+        """)
+        rows = cursor.fetchall()
+        cursor.close()
+    finally:
+        release_db(conn)
 
     topics = []
     vols = []
@@ -231,13 +282,13 @@ def api_topics_velocity():
     for r in rows:
         vols.append(r['volume'])
         vels.append(r['velocity'])
-        
-    if not topics and not vols:
+
+    if not vols:
         return jsonify({"topics": [], "quadrant_thresholds": {"volume_median": 0, "velocity_median": 0}})
 
     import statistics
-    vol_median = statistics.median(vols) if vols else 0
-    vel_median = statistics.median(vels) if vels else 0
+    vol_median = statistics.median(vols)
+    vel_median = statistics.median(vels)
 
     for r in rows:
         vol = r['volume']
@@ -258,28 +309,26 @@ def api_topics_velocity():
 
     return jsonify({
         "topics": topics,
-        "quadrant_thresholds": {
-            "volume_median": vol_median,
-            "velocity_median": vel_median
-        }
+        "quadrant_thresholds": {"volume_median": vol_median, "velocity_median": vel_median}
     })
 
 @app.route('/api/topics/convergence')
 def api_topics_convergence():
     conn = get_db()
-    cursor = get_cursor(conn)
-    cursor.execute("""
-        SELECT k.keyword, k.channel_id, c.channel_name, c.tier 
-        FROM keywords k
-        JOIN channels c ON k.channel_id = c.channel_id
-        WHERE k.extracted_at > NOW() - INTERVAL '24 hours'
-    """)
-    rows = cursor.fetchall()
-    
-    cursor.execute("SELECT COUNT(*) as c FROM channels")
-    total_channels = cursor.fetchone()['c'] or 1
-    cursor.close()
-    conn.close()
+    try:
+        cursor = get_cursor(conn)
+        cursor.execute("""
+            SELECT k.keyword, k.channel_id, c.channel_name, c.tier
+            FROM keywords k
+            JOIN channels c ON k.channel_id = c.channel_id
+            WHERE k.extracted_at > NOW() - INTERVAL '24 hours'
+        """)
+        rows = cursor.fetchall()
+        cursor.execute("SELECT COUNT(*) as c FROM channels")
+        total_channels = cursor.fetchone()['c'] or 1
+        cursor.close()
+    finally:
+        release_db(conn)
 
     nodes_dict = {}
     channel_keywords = {}
@@ -330,93 +379,90 @@ def api_topics_convergence():
 @app.route('/api/channels/rhythm')
 def api_channels_rhythm():
     conn = get_db()
-    cursor = get_cursor(conn)
-    
-    cursor.execute("""
-        SELECT ra.channel_id, c.channel_name, c.tier, ra.uploads_today, ra.baseline_avg, ra.deviation_ratio, ra.alerted_at
-        FROM rhythm_alerts ra
-        JOIN channels c ON ra.channel_id = c.channel_id
-        WHERE ra.alerted_at > NOW() - INTERVAL '24 hours'
-        ORDER BY ra.deviation_ratio DESC
-    """)
-    alerts = [dict(r) for r in cursor.fetchall()]
+    try:
+        cursor = get_cursor(conn)
+        cursor.execute("""
+            SELECT ra.channel_id, c.channel_name, c.tier, ra.uploads_today, ra.baseline_avg, ra.deviation_ratio, ra.alerted_at
+            FROM rhythm_alerts ra
+            JOIN channels c ON ra.channel_id = c.channel_id
+            WHERE ra.alerted_at > NOW() - INTERVAL '24 hours'
+            ORDER BY ra.deviation_ratio DESC
+        """)
+        alerts = [dict(r) for r in cursor.fetchall()]
+        cursor.execute("""
+            SELECT cr.channel_id, c.channel_name, c.tier, cr.avg_daily_uploads as baseline_avg,
+                   (SELECT COUNT(*) FROM videos v WHERE v.channel_id = cr.channel_id AND v.published_at > NOW() - INTERVAL '24 hours') as uploads_today
+            FROM channel_rhythm cr
+            JOIN channels c ON cr.channel_id = c.channel_id
+        """)
+        all_channels = []
+        for r in cursor.fetchall():
+            d = dict(r)
+            d['deviation_ratio'] = d['uploads_today'] / d['baseline_avg'] if d['baseline_avg'] > 0 else 1
+            all_channels.append(d)
+        all_channels.sort(key=lambda x: x['deviation_ratio'], reverse=True)
+        cursor.close()
+    finally:
+        release_db(conn)
 
-    cursor.execute("""
-        SELECT cr.channel_id, c.channel_name, c.tier, cr.avg_daily_uploads as baseline_avg,
-               (SELECT COUNT(*) FROM videos v WHERE v.channel_id = cr.channel_id AND v.published_at > NOW() - INTERVAL '24 hours') as uploads_today
-        FROM channel_rhythm cr
-        JOIN channels c ON cr.channel_id = c.channel_id
-    """)
-    all_channels = []
-    for r in cursor.fetchall():
-        d = dict(r)
-        d['deviation_ratio'] = d['uploads_today'] / d['baseline_avg'] if d['baseline_avg'] > 0 else 1
-        all_channels.append(d)
-        
-    all_channels.sort(key=lambda x: x['deviation_ratio'], reverse=True)
-    cursor.close()
-    conn.close()
-
-    return jsonify({
-        "alerts": alerts,
-        "all_channels": all_channels
-    })
+    return jsonify({"alerts": alerts, "all_channels": all_channels})
 
 @app.route('/api/firstmovers')
 def api_firstmovers():
     conn = get_db()
-    cursor = get_cursor(conn)
-    cursor.execute("""
-        SELECT c.channel_name, c.tier, COUNT(*) as first_mover_count_30d, MAX(c.channel_id) as channel_id
-        FROM first_movers fm
-        JOIN channels c ON fm.channel_id = c.channel_id
-        WHERE fm.first_seen_at > NOW() - INTERVAL '30 days'
-        GROUP BY c.channel_name, c.tier
-        ORDER BY first_mover_count_30d DESC
-        LIMIT 10
-    """)
-    
-    leaderboard = []
-    rows = cursor.fetchall()
-    for r in rows:
-        d = dict(r)
-        cursor.execute("SELECT keyword FROM first_movers WHERE channel_id = %s LIMIT 3", (d['channel_id'],))
-        d['top_topics'] = [k['keyword'] for k in cursor.fetchall()]
-        leaderboard.append(d)
-
-    cursor.execute("""
-        SELECT fm.keyword, c.channel_name, fm.first_seen_at, 
-               (SELECT lag_hours FROM diffusion_events de WHERE de.keyword = fm.keyword AND de.from_tier=3 AND de.to_tier=1 LIMIT 1) as hours_before_tier1
-        FROM first_movers fm
-        JOIN channels c ON fm.channel_id = c.channel_id
-        ORDER BY fm.first_seen_at DESC
-        LIMIT 5
-    """)
-    recent = [dict(r) for r in cursor.fetchall()]
-    cursor.close()
-    conn.close()
+    try:
+        cursor = get_cursor(conn)
+        cursor.execute("""
+            SELECT c.channel_name, c.tier, COUNT(*) as first_mover_count_30d, MAX(c.channel_id) as channel_id
+            FROM first_movers fm
+            JOIN channels c ON fm.channel_id = c.channel_id
+            WHERE fm.first_seen_at > NOW() - INTERVAL '30 days'
+            GROUP BY c.channel_name, c.tier
+            ORDER BY first_mover_count_30d DESC
+            LIMIT 10
+        """)
+        leaderboard = []
+        rows = cursor.fetchall()
+        for r in rows:
+            d = dict(r)
+            cursor.execute("SELECT keyword FROM first_movers WHERE channel_id = %s LIMIT 3", (d['channel_id'],))
+            d['top_topics'] = [k['keyword'] for k in cursor.fetchall()]
+            leaderboard.append(d)
+        cursor.execute("""
+            SELECT fm.keyword, c.channel_name, fm.first_seen_at,
+                   (SELECT lag_hours FROM diffusion_events de WHERE de.keyword = fm.keyword AND de.from_tier=3 AND de.to_tier=1 LIMIT 1) as hours_before_tier1
+            FROM first_movers fm
+            JOIN channels c ON fm.channel_id = c.channel_id
+            ORDER BY fm.first_seen_at DESC
+            LIMIT 5
+        """)
+        recent = [dict(r) for r in cursor.fetchall()]
+        cursor.close()
+    finally:
+        release_db(conn)
 
     return jsonify({"leaderboard": leaderboard, "recent": recent})
 
 @app.route('/api/diffusion')
 def api_diffusion():
     conn = get_db()
-    cursor = get_cursor(conn)
-    cursor.execute("""
-        SELECT keyword, from_tier, to_tier, lag_hours, crossed_at
-        FROM diffusion_events
-        ORDER BY crossed_at DESC LIMIT 10
-    """)
-    recent = [dict(r) for r in cursor.fetchall()]
-    
-    cursor.execute("SELECT AVG(lag_hours) as a FROM diffusion_events WHERE from_tier=3 AND to_tier=2")
-    t32 = cursor.fetchone()['a'] or 0
-    cursor.execute("SELECT AVG(lag_hours) as a FROM diffusion_events WHERE from_tier=2 AND to_tier=1")
-    t21 = cursor.fetchone()['a'] or 0
-    cursor.execute("SELECT AVG(lag_hours) as a FROM diffusion_events WHERE from_tier=3 AND to_tier=1")
-    t31 = cursor.fetchone()['a'] or 0
-    cursor.close()
-    conn.close()
+    try:
+        cursor = get_cursor(conn)
+        cursor.execute("""
+            SELECT keyword, from_tier, to_tier, lag_hours, crossed_at
+            FROM diffusion_events
+            ORDER BY crossed_at DESC LIMIT 10
+        """)
+        recent = [dict(r) for r in cursor.fetchall()]
+        cursor.execute("SELECT AVG(lag_hours) as a FROM diffusion_events WHERE from_tier=3 AND to_tier=2")
+        t32 = cursor.fetchone()['a'] or 0
+        cursor.execute("SELECT AVG(lag_hours) as a FROM diffusion_events WHERE from_tier=2 AND to_tier=1")
+        t21 = cursor.fetchone()['a'] or 0
+        cursor.execute("SELECT AVG(lag_hours) as a FROM diffusion_events WHERE from_tier=3 AND to_tier=1")
+        t31 = cursor.fetchone()['a'] or 0
+        cursor.close()
+    finally:
+        release_db(conn)
 
     return jsonify({
         "recent_events": recent,
@@ -430,19 +476,20 @@ def api_diffusion():
 @app.route('/api/linguistics')
 def api_linguistics():
     conn = get_db()
-    cursor = get_cursor(conn)
-    cursor.execute("SELECT * FROM title_linguistics ORDER BY recorded_at DESC LIMIT 7")
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    
+    try:
+        cursor = get_cursor(conn)
+        cursor.execute("SELECT * FROM title_linguistics ORDER BY recorded_at DESC LIMIT 7")
+        rows = cursor.fetchall()
+        cursor.close()
+    finally:
+        release_db(conn)
+
     if not rows:
         return jsonify({"current": {}, "history_7d": [], "urgency_delta_vs_7d_avg": 0})
-        
+
     current = dict(rows[0])
-    current['question_ratio'] = current['question_titles'] / max(current['total_titles'],1)
-    current['individual_ratio'] = current['named_individual_titles'] / max(current['total_titles'],1)
-    
+    current['question_ratio'] = current['question_titles'] / max(current['total_titles'], 1)
+    current['individual_ratio'] = current['named_individual_titles'] / max(current['total_titles'], 1)
     history = [{"recorded_at": r['recorded_at'].isoformat() if isinstance(r['recorded_at'], datetime.datetime) else r['recorded_at'], "urgency_ratio": r['urgency_ratio']} for r in rows[::-1]]
     avg_7d = sum(r['urgency_ratio'] for r in rows) / len(rows)
     delta = current['urgency_ratio'] - avg_7d
@@ -545,7 +592,7 @@ def api_daily_briefing():
         })
     finally:
         cursor.close()
-        conn.close()
+        release_db(conn)
 
 
 # --- MUNGER API ROUTES ---
@@ -584,7 +631,7 @@ def api_calibration():
         })
     finally:
         cursor.close()
-        conn.close()
+        release_db(conn)
 
 @app.route('/api/engagement/heat')
 def api_engagement_heat():
@@ -647,7 +694,7 @@ def api_engagement_heat():
         })
     finally:
         cursor.close()
-        conn.close()
+        release_db(conn)
 
 @app.route('/api/engagement/channel/<channel_id>')
 def api_engagement_channel(channel_id):
@@ -689,7 +736,7 @@ def api_engagement_channel(channel_id):
         })
     finally:
         cursor.close()
-        conn.close()
+        release_db(conn)
 
 @app.route('/api/feedback')
 def api_feedback():
@@ -746,7 +793,7 @@ def api_feedback():
         })
     finally:
         cursor.close()
-        conn.close()
+        release_db(conn)
 
 @app.route('/api/stability')
 def api_stability():
@@ -817,7 +864,7 @@ def api_stability():
         })
     finally:
         cursor.close()
-        conn.close()
+        release_db(conn)
 
 @app.route('/status')
 def status():
@@ -952,6 +999,46 @@ def api_status():
         if 'conn' in locals() and conn: conn.close()
 
 
+@app.route('/api/divergence')
+def api_divergence():
+    conn = get_db()
+    cursor = get_cursor(conn)
+    try:
+        cursor.execute("""
+            SELECT d.*, 
+            (SELECT COUNT(DISTINCT channel_id) FROM keywords WHERE keyword=d.keyword) as hs
+            FROM affiliation_divergence d
+            WHERE d.id IN (SELECT MAX(id) FROM affiliation_divergence GROUP BY keyword)
+        """)
+        rows = [dict(r) for r in cursor.fetchall()]
+        
+        grass = [r for r in rows if r['direction'] == 'independent_leading' and r['divergence_score'] >= 0.6 and r['independent_count'] >= 3 and r['affiliated_count'] <= 1]
+        aff = [r for r in rows if r['direction'] == 'affiliated_leading' and r['divergence_score'] >= 0.5]
+        bal = [r for r in rows if r['direction'] == 'balanced']
+        
+        grass = sorted(grass, key=lambda x: x['independent_count'], reverse=True)
+        aff = sorted(aff, key=lambda x: x['affiliated_count'], reverse=True)
+        bal = sorted(bal, key=lambda x: x['total_channel_coverage'], reverse=True)
+        
+        for r in rows:
+            if isinstance(r['recorded_at'], datetime.datetime):
+                r['recorded_at'] = r['recorded_at'].isoformat()
+
+        return jsonify({
+            "updated_at": datetime.datetime.utcnow().isoformat(),
+            "grassroots_emerging": grass[:10],
+            "affiliated_pushing": aff[:10],
+            "balanced": bal[:10],
+            "munger_insight": f"{len(grass)} topics currently emerging from independents with no affiliated coverage — potential agenda-setters"
+        })
+    except Exception as e:
+        app.logger.error(f"Divergence API error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        release_db(conn)
+
+
 # ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────
 
 @app.route('/admin/login', methods=['GET', 'POST'])
@@ -1070,7 +1157,7 @@ def admin_get_channels():
         return jsonify(rows)
     finally:
         cursor.close()
-        conn.close()
+        release_db(conn)
 
 
 @app.route('/api/admin/channels', methods=['POST'])
@@ -1106,7 +1193,7 @@ def admin_add_channel():
         return jsonify({'error': str(e)}), 500
     finally:
         cursor.close()
-        conn.close()
+        release_db(conn)
 
 
 @app.route('/api/admin/channels/<channel_id>', methods=['DELETE'])
@@ -1127,4 +1214,4 @@ def admin_delete_channel(channel_id):
         return jsonify({'error': str(e)}), 500
     finally:
         cursor.close()
-        conn.close()
+        release_db(conn)

@@ -63,7 +63,12 @@
       <h2 class="text-xl sm:text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
         Fastest Growing Videos
       </h2>
-      <div class="space-y-3">
+      <div x-show="!summary_loaded" class="animate-pulse space-y-3 py-4">
+        <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+        <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+        <div class="h-4 bg-gray-200 rounded w-2/3"></div>
+      </div>
+      <div x-show="summary_loaded" class="space-y-3">
         <template x-for="(vid, i) in (summary.hottest_videos ?? []).slice(0,8)" :key="vid.video_id">
           <div class="flex gap-4 items-start border-b border-gray-100 pb-3">
             <span class="font-serif font-black text-gray-300 text-xl sm:text-2xl w-8 pt-0.5" x-text="i+1"></span>
@@ -89,7 +94,12 @@
       <h2 class="text-xl sm:text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
         Converging Keywords <span class="text-[10px] sm:text-xs font-sans font-normal text-gray-500 uppercase">last 24h · across 3+ channels</span>
       </h2>
-      <div class="flex flex-wrap gap-2">
+      <div x-show="!summary_loaded" class="animate-pulse flex flex-wrap gap-2 py-4">
+        <div class="h-6 bg-gray-200 rounded w-20"></div>
+        <div class="h-6 bg-gray-200 rounded w-24"></div>
+        <div class="h-6 bg-gray-200 rounded w-16"></div>
+      </div>
+      <div x-show="summary_loaded" class="flex flex-wrap gap-2">
         <template x-for="kw in (summary.top_converging_keywords ?? []).slice(0,20)" :key="kw.keyword">
           <span class="inline-flex items-center gap-1.5 border border-gray-300 px-2.5 py-1 text-xs font-bold font-sans uppercase tracking-wider hover:border-econred hover:text-econred transition cursor-default">
             <span x-text="kw.keyword"></span>
@@ -107,7 +117,12 @@
       <h2 class="text-xl sm:text-2xl font-serif font-bold text-black border-b-[2px] border-black pb-1 mb-4">
         Channel Activity <span class="text-[10px] sm:text-xs font-sans font-normal text-gray-500 uppercase">last 24h</span>
       </h2>
-      <div class="overflow-x-auto px-1 sm:px-0">
+      <div x-show="!summary_loaded" class="animate-pulse space-y-3 py-4">
+        <div class="h-4 bg-gray-200 rounded w-full"></div>
+        <div class="h-4 bg-gray-200 rounded w-full"></div>
+        <div class="h-4 bg-gray-200 rounded w-full"></div>
+      </div>
+      <div x-show="summary_loaded" class="overflow-x-auto px-1 sm:px-0">
         <table class="w-full text-sm border-collapse min-w-[500px] sm:min-w-0">
           <thead>
             <tr class="border-b-[2px] border-black text-[10px] font-bold uppercase tracking-widest text-gray-500 font-sans">
@@ -170,10 +185,18 @@
       </div>
     </div>
 
-    <!-- YouTube in Brief -->
+    <!-- YouTube AI Report -->
     <div>
-      <h2 class="text-sm font-sans font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3 flex justify-between">
-        YouTube in Brief
+      <h2 class="text-sm font-sans font-bold uppercase tracking-widest text-black border-b border-gray-300 pb-1 mb-3 flex justify-between items-center">
+        <span class="flex items-center gap-2">
+          YouTube AI Report
+          <span class="relative group cursor-help">
+            <span class="text-[10px] font-normal text-gray-400 border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center leading-none">?</span>
+            <span class="absolute left-0 top-5 z-50 w-64 bg-black text-white text-[10px] font-normal normal-case tracking-normal p-3 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
+              An AI-generated executive summary produced nightly by a local language model. It applies three analytical lenses — agenda divergence, channel rhythm, and linguistic temperature — to map the informational metabolism of the YouTube political ecosystem.
+            </span>
+          </span>
+        </span>
         <span class="text-[10px] text-gray-500 font-normal italic lowercase mt-1" x-text="briefing_status"></span>
       </h2>
       <div class="briefing-card" x-html="formatBriefing(briefing_data.briefing)"></div>
@@ -207,6 +230,7 @@
 document.addEventListener('alpine:init', () => {
   Alpine.data('overviewDashboard', () => ({
     summary: {},
+    summary_loaded: false,
     pulse_data: {}, pulse_status: 'syncing…',
     briefing_data: { briefing: 'Compiling intelligence…' }, briefing_status: 'syncing…',
     cal: {},
@@ -217,7 +241,10 @@ document.addEventListener('alpine:init', () => {
       Chart.defaults.font.family = '"Inter", sans-serif';
       Chart.defaults.color = '#111';
 
-      await Promise.all([this.fetchSummary(), this.fetchPulse(), this.fetchBriefing(), this.fetchCalibration()]);
+      this.fetchSummary();
+      this.fetchPulse();
+      this.fetchBriefing();
+      this.fetchCalibration();
       
       // ResizeObserver to handle canvas re-renders
       this.$nextTick(() => {
@@ -234,7 +261,12 @@ document.addEventListener('alpine:init', () => {
     },
 
     async fetchSummary() {
-      try { const r = await fetch('/api/summary'); this.summary = await r.json(); } catch(e) {}
+      try { 
+        const r = await fetch('/api/summary'); 
+        this.summary = await r.json(); 
+      } catch(e) {} finally {
+        this.summary_loaded = true;
+      }
     },
     async fetchPulse() {
       try {
