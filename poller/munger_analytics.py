@@ -207,7 +207,7 @@ def detect_feedback_loops(db_conn=None):
                 row_pct = cursor.fetchone()
                 pct = row_pct['pct'] if row_pct else 0
                 
-                if pct > 75:
+                if pct > 90:
                     # Deduplicate: did we log this keyword/channel today?
                     cursor.execute("""
                         SELECT 1 FROM feedback_events 
